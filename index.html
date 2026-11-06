@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Annuaire des Entreprises Fictives</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="notice">
+      Site pédagogique : toutes les entreprises présentées sont fictives.
+    </div>
+    <header class="top">
+      <a class="brand" href="index.html"
+        ><span class="badge">FICTIF</span
+        ><span><strong>Annuaire</strong> des Entreprises Fictives</span></a
+      >
+      <a class="admin-link" href="admin.html">Espace administrateur</a>
+    </header>
+
+    <section class="hero">
+      <h1>Trouvez toutes les entreprises fictives</h1>
+      <p>
+        Recherchez une entreprise ou un établissement par son nom, son groupe,
+        son enseigne, son adresse ou son numéro SIREN/SIRET et consultez sa
+        fiche.
+      </p>
+      <form id="search" class="hero-search">
+        <input
+          id="q"
+          placeholder="Nom, groupe, enseigne d'établissement, adresse, n° SIRET/SIREN…"
+          autocomplete="off"
+        />
+        <button>Rechercher</button>
+      </form>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <div class="stats" id="stats"></div>
+
+    <main class="wide">
+      <h2 class="sec-title" id="title">Entreprises référencées</h2>
+      <ul id="results" class="cards"></ul>
+    </main>
+
+    <script type="module">
+      import { db } from "./firebase-config.js";
+      import {
+        collection,
+        getDocs,
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import { esc, norm, fmtSiren } from "./utils.js";
+
+      const snap = await getDocs(collection(db, "entreprises"));
+      const all = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) =>
+          (b.dateCreation || "").localeCompare(a.dateCreation || ""),
+        );
+
+      const q = document.getElementById("q");
+      const list = document.getElementById("results");
+      const title = document.getElementById("title");
+
+      const enseignesDe = (e) => [
+        ...new Set(
+          [
+            e.enseigneSiege,
+            ...(e.etablissements || []).map((x) => x.enseigne),
+          ].filter(Boolean),
+        ),
+      ];
+      const nafsDe = (e) =>
+        [
+          e.naf,
+          ...(e.nafSecondaires || []).flatMap((x) => [x.naf, x.activite]),
+          ...(e.etablissements || []).flatMap((et) => [
+            et.naf,
+            et.activite,
+            et.adresse,
+            ...(et.nafSecondaires || []).flatMap((s) => [s.naf, s.activite]),
+          ]),
+        ].filter(Boolean);
+      const groupesDe = (e) =>
+        [
+          ...(e.groupes || []),
+          ...(e.etablissements || []).flatMap((et) => et.groupes || []),
+        ].filter((g) => g.groupe);
+
+      /* Statistiques */
+      const actives = all.filter((e) => e.statut !== "Cessée").length;
+      const nbEtab = all.reduce(
+        (n, e) => n + 1 + (e.etablissements || []).length,
+        0,
+      );
+      document.getElementById("stats").innerHTML = [
+        [all.length, "entreprises référencées"],
+        [actives, "en activité"],
+        [all.length - actives, "cessées"],
+        [nbEtab, "fiches établissements"],
+      ]
+        .map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`)
+        .join("");
+
+      /* Suggestions */
+      const villes = [
+        ...new Set(all.map((e) => e.ville).filter(Boolean)),
+      ].slice(0, 5);
+      document.getElementById("chips").innerHTML = villes.length
+        ? `<span>Essayez :</span>` +
+          villes
+            .map(
+              (v) =>
+                `<button type="button" class="chip" data-q="${esc(v)}">${esc(v)}</button>`,
+            )
+            .join("")
+        : "";
+      document.getElementById("chips").addEventListener("click", (e) => {
+        if (e.target.dataset.q) {
+          q.value = e.target.dataset.q;
+          render();
+          list.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+
+      const initiales = (s) =>
+        String(s || "?")
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((w) => w[0])
+          .join("")
+          .toUpperCase();
+
+      function render() {
+        const t = norm(q.value).replace(/\s+/g, " ").trim();
+        const tDigits = t.replace(/\s/g, "");
+        const found = all.filter((e) => {
+          if (!t) return true;
+          const hay = norm(
+            [
+              e.denomination,
+              e.nomCommercial,
+              e.sigle,
+              ...enseignesDe(e),
+              ...groupesDe(e).map(
+                (g) => `${g.groupe} ${g.activiteCible || ""}`,
+              ),
+              e.adresse,
+              e.cp,
+              e.ville,
+              e.activite,
+              ...nafsDe(e),
+            ].join(" "),
+          );
+          const allSirets = [
+            (e.siren || "") + (e.nic || ""),
+            ...(e.etablissements || []).map(
+              (et) => et.siret || (e.siren || "") + (et.nic || ""),
+            ),
+          ];
+          return (
+            hay.includes(t) ||
+            (e.siren || "").includes(tDigits) ||
+            (tDigits && allSirets.some((s) => s.includes(tDigits)))
+          );
+        });
+        title.textContent = t
+          ? `${found.length} résultat${found.length > 1 ? "s" : ""} pour « ${q.value.trim()} »`
+          : "Entreprises référencées";
+        list.innerHTML = found.length
+          ? found
+              .map((e) => {
+                const ens = enseignesDe(e);
+                const grps = (e.groupes || []).filter(
+                  (g) =>
+                    g.groupe &&
+                    !g.dateFin &&
+                    !/ancien|cédé|cede/i.test(g.type || ""),
+                );
+                const nbEt = 1 + (e.etablissements || []).length;
+                return `
+        <li><a class="card-link" href="entreprise.html?id=${esc(e.id)}">
+          <div class="avatar">${esc(initiales(e.denomination))}</div>
+          <div>
+            <strong>${esc(e.denomination)}</strong>
+            <span class="pill ${e.statut === "Cessée" ? "off" : "on"}">${e.statut === "Cessée" ? "Cessée" : "En activité"}</span>
+            ${grps.map((g) => `<span class="pill grp" style="margin-left:4px">${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` · ${g.pourcentage}%` : ""}</span>`).join("")}
+            ${e.nomCommercial || ens.length ? `<div class="muted">${[e.nomCommercial, ...ens].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+            <div class="muted">SIREN ${fmtSiren(e.siren)} · ${nbEt} établissement${nbEt > 1 ? "s" : ""}</div>
+            <div class="muted">${esc(e.activite)}</div>
+            <div class="muted">${esc(e.adresse)} ${esc(e.cp)} ${esc(e.ville)}</div>
+          </div>
+        </a></li>`;
+              })
+              .join("")
+          : `<li class="empty" style="grid-column:1/-1">Aucune entreprise ne correspond à votre recherche.</li>`;
+      }
+
+      document.getElementById("search").addEventListener("submit", (e) => {
+        e.preventDefault();
+        render();
+      });
+      q.addEventListener("input", render);
+      render();
+    </script>
+  </body>
+</html>

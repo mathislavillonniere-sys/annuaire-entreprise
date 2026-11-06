@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Administration — Annuaire fictif</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="notice">
+      Espace administrateur : données fictives uniquement.
+    </div>
+    <header class="top">
+      <a class="brand" href="index.html"
+        ><span class="badge">FICTIF</span
+        ><span><strong>Annuaire</strong> des Entreprises Fictives</span></a
+      >
+      <a class="admin-link" href="index.html">← Voir le site public</a>
+      <button class="btn sec hidden" id="logout">Déconnexion</button>
+    </header>
+
+    <main class="wide">
+      <!-- Connexion -->
+      <section
+        id="login"
+        class="card"
+        style="max-width: 420px; margin: 40px auto"
+      >
+        <h2>Connexion administrateur</h2>
+        <form id="loginForm">
+          <label>E-mail</label
+          ><input type="email" id="email" required /><br /><br />
+          <label>Mot de passe</label
+          ><input type="password" id="pwd" required /><br /><br />
+          <button class="btn">Se connecter</button>
+          <p class="error" id="loginErr"></p>
+        </form>
+      </section>
+
+      <!-- Panneau admin -->
+      <section id="panel" class="hidden">
+        <div class="card">
+          <div class="actions" style="justify-content: space-between">
+            <h2 style="margin: 0">
+              Entreprises fictives (<span id="nb">0</span>)
+            </h2>
+            <button class="btn" id="newBtn">+ Nouvelle entreprise</button>
+          </div>
+          <table class="list" id="tbl"></table>
+        </div>
+
+        <form id="form" class="card hidden">
+          <h2 id="formTitle">Nouvelle entreprise</h2>
+
+          <div class="grid">
+            <div>
+              <label>Dénomination (nom légal) *</label
+              ><input id="denomination" required />
+            </div>
+            <div>
+              <label>Nom commercial</label
+              ><input
+                id="nomCommercial"
+                placeholder="Si différent de la dénomination"
+              />
+            </div>
+            <div>
+              <label>Sigle</label><input id="sigle" placeholder="Ex. : TF1" />
+            </div>
+            <div>
+              <label>Enseigne du siège</label
+              ><input id="enseigneSiege" placeholder="Ex. : PÔLE MÉDIA TF1" />
+            </div>
+            <div>
+              <label>SIREN (9 chiffres) *</label>
+              <div style="display: flex; gap: 6px">
+                <input id="siren" pattern="\d{9}" maxlength="9" required />
+                <button type="button" class="btn sec small" id="genSiren">
+                  Générer
+                </button>
+              </div>
+            </div>
+            <div>
+              <label>NIC du siège (5 chiffres) *</label>
+              <div style="display: flex; gap: 6px">
+                <input
+                  id="nic"
+                  pattern="\d{5}"
+                  maxlength="5"
+                  value="00015"
+                  required
+                />
+                <button type="button" class="btn sec small" id="genNic">
+                  Générer
+                </button>
+              </div>
+            </div>
+            <div>
+              <label>Forme juridique</label>
+              <select id="formeJuridique">
+                <option>SAS, société par actions simplifiée</option>
+                <option>SARL, société à responsabilité limitée</option>
+                <option>SA, société anonyme</option>
+                <option>EURL</option>
+                <option>SASU</option>
+                <option>Entrepreneur individuel</option>
+                <option>Association loi 1901</option>
+              </select>
+            </div>
+            <div>
+              <label>Code NAF principal (Entreprise & Siège)</label>
+              <input
+                id="nafFilter"
+                placeholder="Filtrer : 62.01 ou « programmation »…"
+                style="margin-bottom: 6px"
+              />
+              <select id="naf"></select>
+            </div>
+            <div>
+              <label>Libellé de l'activité principale</label
+              ><input
+                id="activite"
+                placeholder="Rempli automatiquement depuis le code NAF"
+              />
+            </div>
+            <div>
+              <label>Date de création</label
+              ><input type="date" id="dateCreation" />
+            </div>
+            <div>
+              <label>Date d'immatriculation</label
+              ><input type="date" id="dateImmatriculation" />
+            </div>
+            <div>
+              <label>Statut</label>
+              <select id="statut">
+                <option>En activité</option>
+                <option>Cessée</option>
+              </select>
+            </div>
+            <div>
+              <label>Date de cessation (si cessée / faillite)</label
+              ><input type="date" id="dateCessation" />
+            </div>
+            <div>
+              <label>Catégorie</label>
+              <select id="categorie">
+                <option value="">—</option>
+                <option>Micro-entreprise</option>
+                <option>Petite ou Moyenne Entreprise</option>
+                <option>Entreprise de taille intermédiaire</option>
+                <option>Grande Entreprise</option>
+              </select>
+            </div>
+            <div>
+              <label>Tranche d'effectif</label>
+              <select id="tranche">
+                <option value="">—</option>
+                <option>0</option>
+                <option>1 à 2</option>
+                <option>3 à 5</option>
+                <option>6 à 9</option>
+                <option>10 à 19</option>
+                <option>20 à 49</option>
+                <option>50 à 99</option>
+                <option>100 à 249</option>
+                <option>250 et plus</option>
+              </select>
+            </div>
+            <div>
+              <label>Capital social (€)</label
+              ><input type="number" id="capital" min="0" />
+            </div>
+            <div>
+              <label>Adresse du siège</label
+              ><input id="adresse" placeholder="1 QUAI EXEMPLE" />
+            </div>
+            <div><label>Code postal</label><input id="cp" maxlength="5" /></div>
+            <div><label>Ville</label><input id="ville" /></div>
+          </div>
+
+          <!-- Datalists pour faciliter le rattachement aux groupes / établissements propriétaires -->
+          <datalist id="dl-entites"></datalist>
+          <datalist id="dl-activites"></datalist>
+
+          <div id="sections"></div>
+
+          <div class="actions" style="margin-top: 20px">
+            <button class="btn" type="submit">Enregistrer</button>
+            <button class="btn sec" type="button" id="cancel">Annuler</button>
+          </div>
+          <p id="msg"></p>
+        </form>
+      </section>
+    </main>
+
+    <script type="module">
+      import { db, auth } from "./firebase-config.js";
+      import {
+        collection,
+        getDocs,
+        addDoc,
+        setDoc,
+        deleteDoc,
+        doc,
+        getDoc,
+        query,
+        orderBy,
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+      import {
+        onAuthStateChanged,
+        signInWithEmailAndPassword,
+        signOut,
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+      import { esc, norm, fmtSiren, fmtSiret } from "./utils.js";
+      import { NAF } from "./naf.js";
+
+      const $ = (id) => document.getElementById(id);
+      const FIELDS = [
+        "denomination",
+        "nomCommercial",
+        "sigle",
+        "enseigneSiege",
+        "siren",
+        "nic",
+        "formeJuridique",
+        "naf",
+        "activite",
+        "dateCreation",
+        "dateImmatriculation",
+        "statut",
+        "dateCessation",
+        "categorie",
+        "tranche",
+        "capital",
+        "adresse",
+        "cp",
+        "ville",
+      ];
+
+      const TYPES_RATTACHEMENT = [
+        "Filiale / Contrôle majoritaire",
+        "Détention à 100 %",
+        "Reprise / Rachat suite à faillite",
+        "Reprise / Rachat d'entreprise ou d'établissement",
+        "Détenue par un établissement du groupe",
+        "Co-entreprise / Détention conjointe",
+        "Participation minoritaire",
+        "Ancien groupe (Faillite / Liquidation)",
+        "Ancien propriétaire (Cédé / Repris)",
+      ];
+
+      /* ---------- Génération automatique du NIC ---------- */
+      function genererNic(siren, numEtab = 1) {
+        const sirenClean = String(siren || "").replace(/\D/g, "");
+        const nicBase = String(numEtab).padStart(4, "0");
+        if (sirenClean.length === 9) {
+          const base13 = sirenClean + nicBase;
+          let somme = 0;
+          for (let i = 0; i < 13; i++) {
+            let c = parseInt(base13[i], 10);
+            if (i % 2 === 0) {
+              c *= 2;
+              if (c > 9) c -= 9;
+            }
+            somme += c;
+          }
+          const cle = (10 - (somme % 10)) % 10;
+          return nicBase + cle;
+        }
+        return nicBase + (Math.floor(Math.random() * 9) + 1);
+      }
+
+      function prochainNicEtablissement() {
+        const existants = new Set([$("nic").value]);
+        document
+          .querySelectorAll(
+            'fieldset[data-sec="etablissements"] input[data-k="nic"]',
+          )
+          .forEach((inp) => {
+            if (inp.value) existants.add(inp.value);
+          });
+        let numero = existants.size + 1;
+        let candidat = genererNic($("siren").value, numero);
+        while (existants.has(candidat)) {
+          numero++;
+          candidat = genererNic($("siren").value, numero);
+        }
+        return candidat;
+      }
+
+      const SECTIONS = {
+        nafSecondaires: {
+          title: "Codes NAF secondaires du siège social (et de l'unité légale)",
+          cols: [
+            ["naf", "Code NAF", "select", "NAF"],
+            ["activite", "Libellé (rempli automatiquement)"],
+          ],
+        },
+        groupes: {
+          title:
+            "Rattachement de l'entreprise (ou d'une activité) à un Groupe / Repreneur (actuel et historique)",
+          cols: [
+            [
+              "groupe",
+              "Nom du Groupe, Repreneur ou Établissement propriétaire",
+            ],
+            [
+              "sirenGroupe",
+              "SIREN (9 ch.) ou SIRET de l'établissement propriétaire (14 ch.)",
+            ],
+            [
+              "activiteCible",
+              "Activité ou périmètre rattaché (vide = toute l'entreprise)",
+            ],
+            ["pourcentage", "Détention (%)", "number"],
+            [
+              "type",
+              "Nature / Statut du rattachement",
+              "select",
+              TYPES_RATTACHEMENT,
+            ],
+            ["dateDebut", "Depuis le / Date de reprise", "date"],
+            ["dateFin", "Jusqu'au (si cédé / faillite)", "date"],
+            [
+              "commentaire",
+              "Mention / Historique (ex. Repris suite faillite X)",
+            ],
+          ],
+        },
+        dirigeants: {
+          title: "Dirigeants",
+          cols: [
+            ["nom", "Nom / Dénomination"],
+            ["role", "Qualité (Président…)"],
+            ["naissance", "Naissance (ex. mars 1985)"],
+          ],
+        },
+        etablissements: {
+          title:
+            "Autres établissements (chaque établissement a sa propre fiche, ses NAF secondaires et son historique de groupes/repreneurs)",
+          cols: [
+            ["nic", "NIC (5 chiffres) — généré auto"],
+            ["naf", "Code NAF principal de l'établissement", "select", "NAF"],
+            ["activite", "Activité principale de l'établissement"],
+            ["enseigne", "Enseigne / Nom de l'établissement"],
+            ["adresse", "Adresse complète (ex. 10 RUE X 75001 PARIS)"],
+            ["dateCreation", "Création", "date"],
+            ["dateFermeture", "Fermeture (vide = en activité)", "date"],
+          ],
+        },
+        documents: {
+          title: "Documents",
+          cols: [
+            ["titre", "Titre"],
+            ["type", "Type"],
+            ["date", "Date", "date"],
+          ],
+        },
+        finances: {
+          title: "Données financières (une ligne par exercice)",
+          cols: [
+            ["annee", "Année"],
+            ["dateCloture", "Date de clôture", "date"],
+            [
+              "type",
+              "Type de bilan",
+              "select",
+              ["Complet", "Simplifié", "Consolidé"],
+            ],
+            ["ca", "Chiffre d'affaires (€)", "number"],
+            ["resultat", "Résultat net (€)", "number"],
+            ["effectif", "Effectif"],
+          ],
+        },
+        annonces: {
+          title: "Annonces et observations",
+          cols: [
+            ["date", "Date", "date"],
+            ["type", "Type (BODACC…)"],
+            ["texte", "Détail"],
+          ],
+        },
+        conventions: {
+          title: "Conventions collectives",
+          cols: [
+            ["idcc", "IDCC"],
+            ["libelle", "Libellé"],
+          ],
+        },
+      };
+
+      let editingId = null;
+      let knownEntities = [];
+
+      /* ---------- Assistant de reprise suite à faillite / cession ---------- */
+      function promptReprise(ancienNom) {
+        const today = new Date().toISOString().slice(0, 10);
+        const dateReprise = prompt(
+          `Date de reprise / transfert (suite à la faillite ou cession de « ${ancienNom || "l'ancien groupe"} ») :`,
+          today,
+        );
+        if (!dateReprise) return null;
+
+        const repreneurNom = prompt(
+          "Nom du nouveau groupe ou établissement repreneur :",
+        );
+        if (!repreneurNom || !repreneurNom.trim()) return null;
+
+        const match = knownEntities.find(
+          (x) => norm(x.label) === norm(repreneurNom.trim()),
+        );
+        const repreneurCode = prompt(
+          "SIREN (9 chiffres) ou SIRET (14 chiffres) du repreneur :",
+          match ? match.code : "",
+        );
+        const pct = prompt(
+          "Pourcentage de détention par le repreneur (%) :",
+          "100",
+        );
+        const motif = prompt(
+          "Motif de la fin de détention pour l'ancien propriétaire :",
+          "Ancien groupe (Faillite / Liquidation)",
+        );
+
+        return {
+          dateReprise: dateReprise.trim(),
+          repreneurNom: repreneurNom.trim(),
+          repreneurCode: (repreneurCode || "").trim(),
+          pourcentage: pct !== null && pct !== "" ? Number(pct) : 100,
+          motifAncien: motif || "Ancien groupe (Faillite / Liquidation)",
+        };
+      }
+
+      /* ---------- Codes NAF ---------- */
+      const nafLabel = (c) => (NAF.find((x) => x[0] === c) || [])[1] || "";
+      function nafOptions(filter = "", keep = "") {
+        const t = norm(filter);
+        const list = NAF.filter(
+          ([c, l]) => !t || norm(c + " " + l).includes(t),
+        );
+        let html =
+          '<option value="">— Choisir un code NAF —</option>' +
+          list
+            .map(
+              ([c, l]) =>
+                `<option value="${esc(c)}">${esc(c)} — ${esc(l)}</option>`,
+            )
+            .join("");
+        if (keep && !list.some((x) => x[0] === keep))
+          html += `<option value="${esc(keep)}">${esc(keep)} ${esc(nafLabel(keep))}</option>`;
+        return html;
+      }
+      const optsFor = (spec) =>
+        spec === "NAF"
+          ? [["", "—"], ...NAF.map(([c, l]) => [c, `${c} — ${l}`])]
+          : ["", ...spec].map((v) => [v, v || "—"]);
+
+      $("nafFilter").addEventListener("input", () => {
+        const cur = $("naf").value;
+        $("naf").innerHTML = nafOptions($("nafFilter").value, cur);
+        $("naf").value = cur;
+      });
+      $("naf").addEventListener("change", () => {
+        const a = $("activite").value;
+        if (!a || NAF.some((x) => x[1] === a))
+          $("activite").value = nafLabel($("naf").value);
+        refreshActivitesDatalist();
+      });
+      $("activite").addEventListener("input", refreshActivitesDatalist);
+
+      function refreshActivitesDatalist() {
+        const items = new Set(["Toute l'entreprise (Unité légale)"]);
+        const mainNaf = $("naf").value;
+        const mainAct = $("activite").value || nafLabel(mainNaf);
+        if (mainNaf || mainAct)
+          items.add(`${mainNaf ? mainNaf + " — " : ""}${mainAct}`.trim());
+
+        document
+          .querySelectorAll(
+            'fieldset[data-sec="nafSecondaires"] .row, fieldset[data-sec="etablissements"] .row, .sub-naf-row',
+          )
+          .forEach((r) => {
+            const n =
+              r.querySelector('[data-k="naf"], [data-subk="naf"]')?.value || "";
+            const a =
+              r.querySelector('[data-k="activite"], [data-subk="activite"]')
+                ?.value || nafLabel(n);
+            if (n || a) items.add(`${n ? n + " — " : ""}${a}`.trim());
+          });
+
+        $("dl-activites").innerHTML = [...items]
+          .map((x) => `<option value="${esc(x)}"></option>`)
+          .join("");
+      }
+
+      /* ---------- Connexion ---------- */
+      onAuthStateChanged(auth, (user) => {
+        $("login").classList.toggle("hidden", !!user);
+        $("panel").classList.toggle("hidden", !user);
+        $("logout").classList.toggle("hidden", !user);
+        if (user) loadList();
+      });
+      $("loginForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        try {
+          await signInWithEmailAndPassword(
+            auth,
+            $("email").value,
+            $("pwd").value,
+          );
+        } catch {
+          $("loginErr").textContent = "Identifiants incorrects.";
+        }
+      });
+      $("logout").addEventListener("click", () => signOut(auth));
+
+      /* ---------- Sections répétables ---------- */
+      function buildSections() {
+        $("sections").innerHTML = Object.entries(SECTIONS)
+          .map(
+            ([k, s]) => `
+        <fieldset data-sec="${k}"><legend>${s.title}</legend>
+          <div class="rows"></div>
+          <button type="button" class="btn sec small add">+ Ajouter</button>
+        </fieldset>`,
+          )
+          .join("");
+        document.querySelectorAll("fieldset[data-sec]").forEach((fs) => {
+          fs.querySelector(".add").addEventListener("click", () =>
+            addRow(fs.dataset.sec),
+          );
+        });
+      }
+
+      /* Sous-ligne 1 : Activité NAF secondaire propre à un établissement */
+      function addEtabSubNaf(container, subVal = {}) {
+        const sr = document.createElement("div");
+        sr.className = "sub-row sub-naf-row";
+        sr.innerHTML = `
+          <div>
+            <label>Code NAF secondaire</label>
+            <select data-subk="naf">${optsFor("NAF")
+              .map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`)
+              .join("")}</select>
+          </div>
+          <div>
+            <label>Libellé de l'activité secondaire</label>
+            <input data-subk="activite" type="text" value="${esc(subVal.activite || "")}" placeholder="Rempli automatiquement" />
+          </div>
+          <button type="button" class="btn danger small rm-sub">✕</button>
+        `;
+        const sel = sr.querySelector('select[data-subk="naf"]');
+        const inp = sr.querySelector('input[data-subk="activite"]');
+        if (subVal.naf) {
+          if (![...sel.options].some((o) => o.value === subVal.naf))
+            sel.add(new Option(subVal.naf, subVal.naf));
+          sel.value = subVal.naf;
+        }
+        sel.addEventListener("change", () => {
+          if (!inp.value || NAF.some((x) => x[1] === inp.value))
+            inp.value = nafLabel(sel.value);
+          refreshActivitesDatalist();
+        });
+        inp.addEventListener("input", refreshActivitesDatalist);
+        sr.querySelector(".rm-sub").addEventListener("click", () => {
+          sr.remove();
+          refreshActivitesDatalist();
+        });
+        container.appendChild(sr);
+      }
+
+      /* Sous-ligne 2 : Rattachement d'un établissement à un Groupe / Repreneur (avec historique complet) */
+      function addEtabSubGroupe(container, subGrp = {}) {
+        const sr = document.createElement("div");
+        sr.className = "sub-row sub-grp-row";
+        sr.innerHTML = `
+          <div>
+            <label>Groupe / Repreneur / Étab. propriétaire</label>
+            <input data-subgk="groupe" list="dl-entites" type="text" value="${esc(subGrp.groupe || "")}" placeholder="Nom du groupe ou repreneur" />
+          </div>
+          <div>
+            <label>SIREN ou SIRET propriétaire</label>
+            <input data-subgk="sirenGroupe" type="text" value="${esc(subGrp.sirenGroupe || "")}" placeholder="Auto ou facultatif" />
+          </div>
+          <div>
+            <label>Activité rattachée de cet étab.</label>
+            <input data-subgk="activiteCible" list="dl-activites" type="text" value="${esc(subGrp.activiteCible || "")}" placeholder="Vide = tout l'établissement" />
+          </div>
+          <div>
+            <label>Détention (%)</label>
+            <input data-subgk="pourcentage" type="number" min="0" max="100" step="0.01" value="${esc(subGrp.pourcentage ?? "")}" />
+          </div>
+          <div>
+            <label>Statut / Nature</label>
+            <select data-subgk="type">
+              ${optsFor(TYPES_RATTACHEMENT)
+                .map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`)
+                .join("")}
+            </select>
+          </div>
+          <div>
+            <label>Depuis le (ou reprise)</label>
+            <input data-subgk="dateDebut" type="date" value="${esc(subGrp.dateDebut || "")}" />
+          </div>
+          <div>
+            <label>Jusqu'au (si faillite/cédé)</label>
+            <input data-subgk="dateFin" type="date" value="${esc(subGrp.dateFin || "")}" />
+          </div>
+          <div>
+            <label>Mention / Historique</label>
+            <input data-subgk="commentaire" type="text" value="${esc(subGrp.commentaire || "")}" placeholder="Ex. Repris suite faillite..." />
+          </div>
+          <div style="display:flex;gap:6px;align-items:end">
+            <button type="button" class="btn small reprise-btn transfer-sub-grp" title="Archiver cet ancien groupe et créer la ligne du repreneur">⚡ Transférer à un repreneur</button>
+            <button type="button" class="btn danger small rm-sub">✕</button>
+          </div>
+        `;
+        const selType = sr.querySelector('[data-subgk="type"]');
+        if (subGrp.type) {
+          if (![...selType.options].some((o) => o.value === subGrp.type))
+            selType.add(new Option(subGrp.type, subGrp.type));
+          selType.value = subGrp.type;
+        }
+        const inpGrp = sr.querySelector('[data-subgk="groupe"]');
+        const inpCode = sr.querySelector('[data-subgk="sirenGroupe"]');
+        inpGrp.addEventListener("input", () => {
+          const match = knownEntities.find(
+            (x) => norm(x.label) === norm(inpGrp.value.trim()),
+          );
+          if (match) {
+            if (!inpCode.value) inpCode.value = match.code || "";
+            if (match.isEtab && !selType.value) {
+              selType.value = "Détenue par un établissement du groupe";
+            }
+          }
+        });
+
+        // Bouton de transfert rapide d'un établissement vers un repreneur
+        sr.querySelector(".transfer-sub-grp").addEventListener("click", () => {
+          const ancienNom = inpGrp.value.trim();
+          const info = promptReprise(ancienNom);
+          if (!info) return;
+
+          // 1. Archive la ligne actuelle (conserve le rattachement à l'ancien groupe)
+          sr.querySelector('[data-subgk="dateFin"]').value = info.dateReprise;
+          if (![...selType.options].some((o) => o.value === info.motifAncien)) {
+            selType.add(new Option(info.motifAncien, info.motifAncien));
+          }
+          selType.value = info.motifAncien;
+          const inpComm = sr.querySelector('[data-subgk="commentaire"]');
+          inpComm.value = `Repris par ${info.repreneurNom} le ${new Date(info.dateReprise + "T00:00:00").toLocaleDateString("fr-FR")}`;
+
+          // 2. Crée automatiquement la nouvelle ligne pour le repreneur
+          addEtabSubGroupe(container, {
+            groupe: info.repreneurNom,
+            sirenGroupe: info.repreneurCode,
+            activiteCible: sr
+              .querySelector('[data-subgk="activiteCible"]')
+              .value.trim(),
+            pourcentage: info.pourcentage,
+            type: "Reprise / Rachat suite à faillite",
+            dateDebut: info.dateReprise,
+            dateFin: "",
+            commentaire: ancienNom
+              ? `Repris suite à la faillite / cession de ${ancienNom}`
+              : "Reprise d'établissement",
+          });
+        });
+
+        sr.querySelector(".rm-sub").addEventListener("click", () =>
+          sr.remove(),
+        );
+        container.appendChild(sr);
+      }
+
+      function addRow(sec, values = {}) {
+        if (sec === "etablissements") {
+          if (!values.nic && values.siret) {
+            values.nic = String(values.siret).slice(9);
+          } else if (!values.nic) {
+            values.nic = prochainNicEtablissement();
+          }
+        }
+        const rows = document.querySelector(
+          `fieldset[data-sec="${sec}"] .rows`,
+        );
+        const row = document.createElement("div");
+        row.className = sec === "etablissements" ? "row etab-row-card" : "row";
+        row.innerHTML =
+          SECTIONS[sec].cols
+            .map(([k, label, type, opts]) => {
+              if (type === "select") {
+                return `<div><label>${label}</label><select data-k="${k}">${optsFor(
+                  opts,
+                )
+                  .map(
+                    ([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`,
+                  )
+                  .join("")}</select></div>`;
+              }
+              if (sec === "etablissements" && k === "nic") {
+                return `<div><label>${label}</label><div style="display:flex;gap:6px"><input data-k="nic" type="text" maxlength="5" pattern="\\d{5}" value="${esc(values[k])}"><button type="button" class="btn sec small regen-etab-nic" title="Générer un autre NIC">🔄</button></div></div>`;
+              }
+              return `<div><label>${label}</label><input data-k="${k}" type="${type || "text"}" ${
+                k === "pourcentage" ? 'min="0" max="100" step="0.01"' : ""
+              } value="${esc(values[k])}"></div>`;
+            })
+            .join("") +
+          `<div style="display:flex;gap:6px;align-items:end">
+            ${sec === "groupes" ? `<button type="button" class="btn small reprise-btn transfer-grp" title="Archiver cet ancien groupe et créer la ligne du repreneur">⚡ Transférer à un repreneur</button>` : ""}
+            <button type="button" class="btn danger small rm">✕</button>
+          </div>`;
+
+        // Bouton pour régénérer le NIC d'un établissement secondaire
+        const btnRegenEtabNic = row.querySelector(".regen-etab-nic");
+        if (btnRegenEtabNic) {
+          btnRegenEtabNic.addEventListener("click", () => {
+            const inpNic = row.querySelector('input[data-k="nic"]');
+            inpNic.value = genererNic(
+              $("siren").value,
+              Math.floor(Math.random() * 89) + 10,
+            );
+          });
+        }
+
+        row.querySelectorAll("select[data-k]").forEach((s) => {
+          const v = values[s.dataset.k] ?? "";
+          if (v && ![...s.options].some((o) => o.value === v))
+            s.add(new Option(v, v));
+          s.value = v;
+        });
+
+        // Remplissage automatique du libellé NAF
+        if (sec === "nafSecondaires" || sec === "etablissements") {
+          const s = row.querySelector('select[data-k="naf"]');
+          const a = row.querySelector('input[data-k="activite"]');
+          s.addEventListener("change", () => {
+            if (!a.value || NAF.some((x) => x[1] === a.value))
+              a.value = nafLabel(s.value);
+            refreshActivitesDatalist();
+          });
+          a.addEventListener("input", refreshActivitesDatalist);
+        }
+
+        // Sous-blocs propres à chaque établissement : (1) NAF secondaires + (2) Groupes / Repreneurs de l'établissement
+        if (sec === "etablissements") {
+          const subBoxNaf = document.createElement("div");
+          subBoxNaf.className = "sub-etab-box";
+          subBoxNaf.innerHTML = `
+            <span class="sub-title">Activités secondaires de cet établissement (propres à sa fiche)</span>
+            <div class="sub-naf-rows"></div>
+            <button type="button" class="btn sec small add-sub-naf">+ Ajouter une activité secondaire à cet établissement</button>
+          `;
+          const subNafContainer = subBoxNaf.querySelector(".sub-naf-rows");
+          subBoxNaf
+            .querySelector(".add-sub-naf")
+            .addEventListener("click", () => addEtabSubNaf(subNafContainer));
+          (values.nafSecondaires || []).forEach((sv) =>
+            addEtabSubNaf(subNafContainer, sv),
+          );
+          row.appendChild(subBoxNaf);
+
+          const subBoxGrp = document.createElement("div");
+          subBoxGrp.className = "sub-etab-box grp-box";
+          subBoxGrp.innerHTML = `
+            <span class="sub-title">Rattachement de cet établissement à un ou plusieurs groupes / repreneurs (historique conservé)</span>
+            <div class="sub-grp-rows"></div>
+            <button type="button" class="btn sec small add-sub-grp">+ Rattacher cet établissement à un groupe / repreneur</button>
+          `;
+          const subGrpContainer = subBoxGrp.querySelector(".sub-grp-rows");
+          subBoxGrp
+            .querySelector(".add-sub-grp")
+            .addEventListener("click", () => addEtabSubGroupe(subGrpContainer));
+          (values.groupes || []).forEach((sg) =>
+            addEtabSubGroupe(subGrpContainer, sg),
+          );
+          row.appendChild(subBoxGrp);
+        }
+
+        // Autocomplétion + Bouton de reprise pour la section Groupes de l'entreprise
+        if (sec === "groupes") {
+          const inpGrp = row.querySelector('input[data-k="groupe"]');
+          const inpCode = row.querySelector('input[data-k="sirenGroupe"]');
+          const inpAct = row.querySelector('input[data-k="activiteCible"]');
+          const selType = row.querySelector('select[data-k="type"]');
+          inpGrp.setAttribute("list", "dl-entites");
+          inpAct.setAttribute("list", "dl-activites");
+          inpGrp.addEventListener("input", () => {
+            const match = knownEntities.find(
+              (x) => norm(x.label) === norm(inpGrp.value.trim()),
+            );
+            if (match) {
+              if (!inpCode.value) inpCode.value = match.code || "";
+              if (match.isEtab && !selType.value) {
+                selType.value = "Détenue par un établissement du groupe";
+              }
+            }
+          });
+
+          row.querySelector(".transfer-grp").addEventListener("click", () => {
+            const ancienNom = inpGrp.value.trim();
+            const info = promptReprise(ancienNom);
+            if (!info) return;
+
+            // 1. Archive l'ancien groupe sur cette ligne (garde l'affiliation sur la fiche de l'ancien groupe)
+            row.querySelector('input[data-k="dateFin"]').value =
+              info.dateReprise;
+            if (
+              ![...selType.options].some((o) => o.value === info.motifAncien)
+            ) {
+              selType.add(new Option(info.motifAncien, info.motifAncien));
+            }
+            selType.value = info.motifAncien;
+            const inpComm = row.querySelector('input[data-k="commentaire"]');
+            if (inpComm) {
+              inpComm.value = `Reprise par ${info.repreneurNom} le ${new Date(info.dateReprise + "T00:00:00").toLocaleDateString("fr-FR")}`;
+            }
+
+            // 2. Ajoute automatiquement la ligne du repreneur avec la date de reprise
+            addRow("groupes", {
+              groupe: info.repreneurNom,
+              sirenGroupe: info.repreneurCode,
+              activiteCible: inpAct.value.trim(),
+              pourcentage: info.pourcentage,
+              type: "Reprise / Rachat suite à faillite",
+              dateDebut: info.dateReprise,
+              dateFin: "",
+              commentaire: ancienNom
+                ? `Repris suite à la faillite / cession de ${ancienNom}`
+                : "Reprise d'entreprise",
+            });
+          });
+        }
+
+        row.querySelector(".rm").addEventListener("click", () => {
+          row.remove();
+          refreshActivitesDatalist();
+        });
+        rows.appendChild(row);
+        refreshActivitesDatalist();
+      }
+
+      function collect(sec) {
+        return [
+          ...document.querySelectorAll(`fieldset[data-sec="${sec}"] .row`),
+        ]
+          .map((r) => {
+            const o = {};
+            r.querySelectorAll("input[data-k], select[data-k]").forEach(
+              (i) =>
+                (o[i.dataset.k] =
+                  i.type === "number" && i.value !== ""
+                    ? Number(i.value)
+                    : i.value.trim()),
+            );
+            if (sec === "etablissements") {
+              o.nafSecondaires = [...r.querySelectorAll(".sub-naf-row")]
+                .map((sr) => ({
+                  naf: sr.querySelector('[data-subk="naf"]').value.trim(),
+                  activite: sr
+                    .querySelector('[data-subk="activite"]')
+                    .value.trim(),
+                }))
+                .filter((x) => x.naf || x.activite);
+
+              o.groupes = [...r.querySelectorAll(".sub-grp-row")]
+                .map((sr) => {
+                  const pctVal = sr.querySelector(
+                    '[data-subgk="pourcentage"]',
+                  ).value;
+                  return {
+                    groupe: sr
+                      .querySelector('[data-subgk="groupe"]')
+                      .value.trim(),
+                    sirenGroupe: sr
+                      .querySelector('[data-subgk="sirenGroupe"]')
+                      .value.trim(),
+                    activiteCible: sr
+                      .querySelector('[data-subgk="activiteCible"]')
+                      .value.trim(),
+                    pourcentage: pctVal !== "" ? Number(pctVal) : "",
+                    type: sr.querySelector('[data-subgk="type"]').value.trim(),
+                    dateDebut: sr
+                      .querySelector('[data-subgk="dateDebut"]')
+                      .value.trim(),
+                    dateFin: sr
+                      .querySelector('[data-subgk="dateFin"]')
+                      .value.trim(),
+                    commentaire: sr
+                      .querySelector('[data-subgk="commentaire"]')
+                      .value.trim(),
+                  };
+                })
+                .filter((x) => x.groupe);
+            }
+            return o;
+          })
+          .filter((o) =>
+            Object.entries(o).some(([k, v]) =>
+              Array.isArray(v) ? v.length > 0 : v !== "",
+            ),
+          );
+      }
+
+      /* ---------- Liste ---------- */
+      async function loadList() {
+        const snap = await getDocs(
+          query(collection(db, "entreprises"), orderBy("denomination")),
+        );
+        knownEntities = [];
+        snap.docs.forEach((d) => {
+          const e = d.data();
+          knownEntities.push({
+            label: e.denomination,
+            code: e.siren || "",
+            desc: `Entreprise · SIREN ${fmtSiren(e.siren)}`,
+            isEtab: false,
+          });
+          if (e.enseigneSiege) {
+            const siretSiege = (e.siren || "") + (e.nic || "00015");
+            knownEntities.push({
+              label: `${e.enseigneSiege} (${e.denomination})`,
+              code: siretSiege,
+              desc: `Établissement Siège · SIRET ${fmtSiret(siretSiege)}`,
+              isEtab: true,
+            });
+          }
+          (e.etablissements || []).forEach((et) => {
+            const siret = et.siret || (e.siren || "") + (et.nic || "");
+            const nomEtab = et.enseigne
+              ? `${et.enseigne} (${e.denomination})`
+              : `Établissement ${et.nic || ""} — ${e.denomination}`;
+            knownEntities.push({
+              label: nomEtab,
+              code: siret,
+              desc: `Établissement · SIRET ${fmtSiret(siret)}`,
+              isEtab: true,
+            });
+          });
+        });
+
+        $("dl-entites").innerHTML = knownEntities
+          .map((x) => `<option value="${esc(x.label)}">${esc(x.desc)}</option>`)
+          .join("");
+
+        $("nb").textContent = snap.size;
+        $("tbl").innerHTML =
+          `<tr><th>Dénomination</th><th>SIREN</th><th>Établissements</th><th>Groupes (actuels & anciens)</th><th>Ville</th><th>Statut</th><th></th></tr>` +
+          snap.docs
+            .map((d) => {
+              const e = d.data();
+              const nbEtabs = 1 + (e.etablissements || []).length;
+              const grps = (e.groupes || [])
+                .map((g) => {
+                  const anc =
+                    Boolean(g.dateFin) ||
+                    /ancien|cédé|cede|faillite|liquidation/i.test(g.type || "");
+                  return `${anc ? "<s class='muted' title='Ancien propriétaire'>" : ""}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` (${g.pourcentage} %)` : ""}${anc ? "</s>" : ""}`;
+                })
+                .join(", ");
+              return `
+          <tr>
+            <td><strong>${esc(e.denomination)}</strong></td>
+            <td>${fmtSiren(e.siren)}</td>
+            <td>${nbEtabs} étab.</td>
+            <td>${grps || "<span class='muted'>—</span>"}</td>
+            <td>${esc(e.ville)}</td>
+            <td>${esc(e.statut)}</td>
+            <td class="actions">
+              <a class="btn sec small" href="entreprise.html?id=${d.id}" target="_blank">Voir</a>
+              <button class="btn small" data-edit="${d.id}">Modifier</button>
+              <button class="btn danger small" data-del="${d.id}">Supprimer</button>
+            </td>
+          </tr>`;
+            })
+            .join("");
+      }
+      $("tbl").addEventListener("click", async (e) => {
+        if (e.target.dataset.edit) openForm(e.target.dataset.edit);
+        if (
+          e.target.dataset.del &&
+          confirm("Supprimer cette entreprise fictive ?")
+        ) {
+          await deleteDoc(doc(db, "entreprises", e.target.dataset.del));
+          loadList();
+        }
+      });
+
+      /* ---------- Formulaire ---------- */
+      async function openForm(id = null) {
+        editingId = id;
+        $("form").classList.remove("hidden");
+        $("form").reset();
+        $("nafFilter").value = "";
+        $("naf").innerHTML = nafOptions();
+        buildSections();
+        $("msg").textContent = "";
+        $("formTitle").textContent = id
+          ? "Modifier l'entreprise"
+          : "Nouvelle entreprise";
+        if (id) {
+          const e = (await getDoc(doc(db, "entreprises", id))).data();
+          $("naf").innerHTML = nafOptions("", e.naf || "");
+          FIELDS.forEach((f) => ($(f).value = e[f] ?? ""));
+          Object.keys(SECTIONS).forEach((s) =>
+            (e[s] || []).forEach((v) => addRow(s, { ...v })),
+          );
+        } else {
+          const nouveauSiren = String(
+            Math.floor(Math.random() * 900000000) + 100000000,
+          );
+          $("siren").value = nouveauSiren;
+          $("nic").value = genererNic(nouveauSiren, 1);
+        }
+        refreshActivitesDatalist();
+        $("form").scrollIntoView({ behavior: "smooth" });
+      }
+
+      $("newBtn").addEventListener("click", () => openForm());
+      $("cancel").addEventListener("click", () =>
+        $("form").classList.add("hidden"),
+      );
+
+      $("genSiren").addEventListener("click", () => {
+        const s = String(Math.floor(Math.random() * 900000000) + 100000000);
+        $("siren").value = s;
+        $("nic").value = genererNic(s, 1);
+      });
+
+      $("genNic").addEventListener("click", () => {
+        const randomNum = Math.floor(Math.random() * 9) + 1;
+        $("nic").value = genererNic($("siren").value, randomNum);
+      });
+
+      $("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const data = {};
+        FIELDS.forEach(
+          (f) =>
+            (data[f] =
+              f === "capital" && $(f).value !== ""
+                ? Number($(f).value)
+                : $(f).value.trim()),
+        );
+        Object.keys(SECTIONS).forEach((s) => (data[s] = collect(s)));
+        try {
+          if (editingId) await setDoc(doc(db, "entreprises", editingId), data);
+          else await addDoc(collection(db, "entreprises"), data);
+          $("msg").textContent = "✔ Enregistré.";
+          $("form").classList.add("hidden");
+          loadList();
+        } catch (err) {
+          $("msg").innerHTML =
+            `<span class="error">Erreur : ${esc(err.message)}</span>`;
+        }
+      });
+    </script>
+  </body>
+</html>
