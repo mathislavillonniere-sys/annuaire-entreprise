@@ -12,17 +12,25 @@
   --purple: #8a2be2;
   --sky: #4aa8f5;
 }
+
 * {
   box-sizing: border-box;
 }
+
+html,
 body {
   margin: 0;
+  padding: 0;
   font-family: Arial, Helvetica, sans-serif;
   color: var(--text);
   background: var(--bg);
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
 }
+
 a {
   color: var(--blue);
+  word-break: break-word;
 }
 
 .notice {
@@ -33,11 +41,12 @@ a {
   font-size: 14px;
 }
 
+/* ---------- En-tête ---------- */
 .top {
   display: flex;
   align-items: center;
-  gap: 32px;
-  padding: 20px 4vw;
+  gap: 24px;
+  padding: 18px 4vw;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
@@ -55,16 +64,18 @@ a {
   font-size: 11px;
   padding: 3px 7px;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 .search {
   display: flex;
   flex: 1;
-  min-width: 260px;
+  min-width: 240px;
   max-width: 640px;
 }
 .search input {
   flex: 1;
-  padding: 14px 16px;
+  min-width: 0;
+  padding: 12px 16px;
   font-size: 16px;
   border: 0;
   border-bottom: 2px solid var(--blue);
@@ -79,12 +90,15 @@ a {
   font-size: 18px;
   cursor: pointer;
   border-radius: 0 4px 0 0;
+  flex-shrink: 0;
 }
 .admin-link {
   margin-left: auto;
   font-size: 15px;
+  white-space: nowrap;
 }
 
+/* ---------- Conteneur principal & Titres ---------- */
 main {
   max-width: 1100px;
   margin: 0 auto;
@@ -99,11 +113,14 @@ h1 {
   margin: 24px 0 12px;
   border-bottom: 3px solid var(--text);
   display: inline-block;
+  line-height: 1.2;
+  word-break: break-word;
 }
 h2 {
   font-size: 20px;
 }
 
+/* ---------- Badges (Pills) ---------- */
 .pill {
   display: inline-block;
   padding: 3px 10px;
@@ -111,6 +128,8 @@ h2 {
   font-size: 13px;
   font-weight: bold;
   text-transform: uppercase;
+  line-height: 1.3;
+  vertical-align: middle;
 }
 .pill.on {
   background: var(--green-bg);
@@ -131,14 +150,42 @@ h2 {
   background: var(--blue-light);
   color: var(--blue);
   margin-left: 8px;
-  font-size: 14px;
+  font-size: 13px;
+}
+.pill.sec-naf {
+  background: #f0f0f0;
+  color: #444;
+  font-size: 11px;
+  padding: 2px 6px;
+  margin-right: 4px;
+}
+.pill.grp {
+  background: #efe6ff;
+  color: #5b14b5;
+  text-transform: none;
+}
+.pill.etab-type {
+  background: #e6f4ea;
+  color: #137333;
+  text-transform: none;
+  font-size: 16px;
+  padding: 6px 14px;
+}
+.pill.bilan {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.pill.reprise {
+  background: #fff4d6;
+  color: #7a4f01;
+  text-transform: none;
 }
 .muted {
   color: var(--grey);
   font-size: 14px;
 }
 
-/* Accueil */
+/* ---------- Accueil (Hero, Stats, Cartes) ---------- */
 .hero {
   background: linear-gradient(135deg, #000091 0%, #3a3ad6 55%, #6a6af4 100%);
   color: #fff;
@@ -166,9 +213,11 @@ h2 {
   box-shadow: 0 10px 30px rgba(0, 0, 60, 0.35);
   border-radius: 8px;
   overflow: hidden;
+  background: #fff;
 }
 .hero-search input {
   flex: 1;
+  min-width: 0;
   padding: 20px 22px;
   font-size: 18px;
   border: 0;
@@ -183,6 +232,7 @@ h2 {
   font-weight: bold;
   cursor: pointer;
   border-left: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .hero-search button:hover {
   background: var(--blue-light);
@@ -211,7 +261,7 @@ h2 {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
   margin: -40px 4vw 0;
   position: relative;
@@ -240,7 +290,7 @@ h2 {
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 18px;
   list-style: none;
   padding: 0;
@@ -290,7 +340,7 @@ h2 {
   color: var(--grey);
 }
 
-/* Fiche */
+/* ---------- Fiche Entreprise & Établissement ---------- */
 .intro {
   line-height: 1.6;
   font-size: 18px;
@@ -340,6 +390,15 @@ h2 {
   margin: 28px 0 8px;
 }
 
+/* Grille 2 colonnes de la fiche (Nom/Enseigne + NAF) */
+.two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 24px;
+  margin-top: 32px;
+}
+
+/* Tableaux */
 table.info {
   width: 100%;
   border-collapse: collapse;
@@ -370,7 +429,7 @@ table.list th {
   background: #f6f6f6;
 }
 
-/* Établissements */
+/* Établissements & Encadrés */
 .etabs-box {
   border: 2px solid var(--border);
   padding: 24px;
@@ -391,6 +450,8 @@ table.list th {
 }
 .etab-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 table.etab {
   width: 100%;
@@ -421,7 +482,50 @@ table.etab .ens {
   text-transform: uppercase;
 }
 
-/* Finances */
+.sub-naf-list {
+  margin-top: 6px;
+  padding-left: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--grey);
+}
+.sub-naf-list li {
+  margin-top: 3px;
+}
+
+/* Jauges de détention */
+.gauge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 130px;
+}
+.gauge {
+  flex: 1;
+  height: 10px;
+  background: #eee;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.gauge-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  border-radius: 999px;
+}
+
+/* Bannière de reprise */
+.reprise-banner {
+  background: #fff9eb;
+  border: 1px solid #f2d08a;
+  border-left: 4px solid #d9822b;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 14px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ---------- Finances ---------- */
 .fin-block {
   margin-bottom: 40px;
 }
@@ -454,8 +558,13 @@ table.etab .ens {
   border-radius: 50%;
   display: inline-block;
 }
+.chart {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .chart svg {
   width: 100%;
+  min-width: 480px;
   height: auto;
   display: block;
 }
@@ -475,7 +584,7 @@ table.fin {
   width: 100%;
   border-collapse: collapse;
   margin-top: 10px;
-  min-width: 620px;
+  min-width: 560px;
 }
 table.fin th {
   text-align: left;
@@ -486,24 +595,18 @@ table.fin td {
   padding: 10px 8px;
   font-size: 16px;
 }
-table.fin tr:not(:first-child) td:first-child {
-  font-size: 16px;
-}
-.pill.bilan {
-  background: var(--blue-light);
-  color: var(--blue);
-}
 
-/* Admin */
+/* ---------- Espace Admin ---------- */
 .card {
   border: 1px solid var(--border);
   padding: 20px;
   border-radius: 4px;
   margin-bottom: 24px;
+  overflow-x: auto;
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 14px;
 }
 label {
@@ -517,7 +620,7 @@ select,
 textarea {
   width: 100%;
   padding: 10px;
-  font-size: 15px;
+  font-size: 16px; /* 16px évite le zoom automatique sur iOS Safari */
   border: 1px solid var(--border);
   border-radius: 4px;
   background: #fff;
@@ -530,6 +633,10 @@ textarea {
   font-size: 15px;
   cursor: pointer;
   border-radius: 4px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn.sec {
   background: #fff;
@@ -543,28 +650,40 @@ textarea {
   padding: 6px 10px;
   font-size: 13px;
 }
+.btn.reprise-btn {
+  background: #efe6ff;
+  color: #5b14b5;
+  border: 1px solid #cdb4ff;
+}
+.btn.reprise-btn:hover {
+  background: #dfd0ff;
+}
 .row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 10px;
   align-items: end;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 fieldset {
   border: 1px solid var(--border);
   border-radius: 4px;
   margin: 18px 0;
   padding: 14px;
+  min-width: 0;
 }
 legend {
   font-weight: bold;
   color: var(--blue);
   padding: 0 8px;
+  max-width: 100%;
+  white-space: normal;
 }
 .actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 .hidden {
   display: none !important;
@@ -572,7 +691,7 @@ legend {
 .error {
   color: var(--red);
 }
-/* Cartes d'établissements et sous-lignes dans l'Admin */
+
 .etab-row-card {
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -603,89 +722,233 @@ legend {
 }
 .sub-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
   gap: 8px;
   align-items: end;
-  margin-bottom: 6px;
-}
-
-/* Affichage public : activités secondaires d'établissement & Groupes */
-.sub-naf-list {
-  margin-top: 6px;
-  padding-left: 0;
-  list-style: none;
-  font-size: 13px;
-  color: var(--grey);
-}
-.sub-naf-list li {
-  margin-top: 3px;
-}
-.pill.sec-naf {
-  background: #f0f0f0;
-  color: #444;
-  font-size: 11px;
-  padding: 2px 6px;
-  margin-right: 4px;
-}
-.pill.grp {
-  background: #efe6ff;
-  color: #5b14b5;
-  text-transform: none;
-}
-.pill.etab-type {
-  background: #e6f4ea;
-  color: #137333;
-  text-transform: none;
-  font-size: 16px;
-  padding: 6px 14px;
-}
-.gauge-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 140px;
-}
-.gauge {
-  flex: 1;
-  height: 10px;
-  background: #eee;
-  border-radius: 999px;
-  overflow: hidden;
-}
-.gauge-bar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--blue), var(--purple));
-  border-radius: 999px;
-}
-/* Historique de reprise / faillite & transfert à un repreneur */
-.pill.reprise {
-  background: #fff4d6;
-  color: #7a4f01;
-  text-transform: none;
-}
-.reprise-banner {
-  background: #fff9eb;
-  border: 1px solid #f2d08a;
-  border-left: 4px solid #d9822b;
-  padding: 12px 16px;
-  border-radius: 6px;
-  margin: 14px 0;
-  font-size: 15px;
-  line-height: 1.5;
+  margin-bottom: 8px;
 }
 .sub-grp-row {
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   padding: 10px;
   background: #f8f5ff;
   border: 1px solid #e3d7ff;
   border-radius: 6px;
   margin-bottom: 10px;
 }
-.btn.reprise-btn {
-  background: #efe6ff;
-  color: #5b14b5;
-  border: 1px solid #cdb4ff;
+
+/* =========================================================
+   RESPONSIVE TABLETTE (max-width: 900px)
+   ========================================================= */
+@media (max-width: 900px) {
+  .top {
+    gap: 14px;
+    padding: 14px 4vw;
+  }
+  .search {
+    order: 3;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .admin-link {
+    margin-left: auto;
+  }
+
+  main,
+  main.wide {
+    padding: 24px 4vw 60px;
+  }
+
+  h1 {
+    font-size: 30px;
+  }
+  .hero {
+    padding: 48px 4vw 64px;
+  }
+  .hero h1 {
+    font-size: 34px;
+  }
+  .hero p {
+    font-size: 16px;
+    margin-bottom: 24px;
+  }
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    margin-top: -28px;
+  }
+
+  /* Onglets défilables horizontalement sans casser la mise en page */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .tabs button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .panel,
+  .etabs-box {
+    padding: 16px;
+  }
 }
-.btn.reprise-btn:hover {
-  background: #dfd0ff;
+
+/* =========================================================
+   RESPONSIVE MOBILE (max-width: 600px)
+   ========================================================= */
+@media (max-width: 600px) {
+  .notice {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .top {
+    padding: 12px 16px;
+    gap: 10px;
+  }
+  .brand {
+    font-size: 17px;
+  }
+  .admin-link {
+    font-size: 13px;
+  }
+
+  /* Hero accueil sur mobile */
+  .hero {
+    padding: 36px 16px 52px;
+  }
+  .hero h1 {
+    font-size: 26px;
+  }
+  .hero p {
+    font-size: 15px;
+  }
+  .hero-search {
+    flex-direction: column;
+    border-radius: 8px;
+  }
+  .hero-search input {
+    padding: 14px 16px;
+    font-size: 16px;
+  }
+  .hero-search button {
+    padding: 14px;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    background: var(--blue-light);
+    width: 100%;
+  }
+
+  /* Statistiques en 2x2 compactes */
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: -24px 16px 0;
+  }
+  .stat {
+    padding: 14px 10px;
+  }
+  .stat b {
+    font-size: 24px;
+  }
+  .stat span {
+    font-size: 12px;
+  }
+
+  main,
+  main.wide {
+    padding: 20px 16px 48px;
+  }
+  h1 {
+    font-size: 24px;
+    margin: 16px 0 10px;
+  }
+  .sec-title {
+    font-size: 21px;
+  }
+  .intro {
+    font-size: 15px;
+  }
+
+  /* Cartes d'entreprises */
+  .card-link {
+    padding: 14px;
+    gap: 12px;
+  }
+  .avatar {
+    width: 42px;
+    height: 42px;
+    font-size: 15px;
+  }
+  .card-link strong {
+    font-size: 16px;
+  }
+
+  /* Tableau d'informations légales : libellé au-dessus de la valeur sur petit écran */
+  table.info,
+  table.info tbody,
+  table.info tr,
+  table.info th,
+  table.info td {
+    display: block;
+    width: 100%;
+  }
+  table.info tr {
+    padding: 10px 0;
+  }
+  table.info th {
+    padding: 0 0 4px;
+    font-size: 13px;
+    color: var(--grey);
+    text-transform: uppercase;
+  }
+  table.info td {
+    padding: 0;
+    font-size: 15px;
+  }
+
+  /* Tableaux de listes et d'établissements défilables proprement */
+  table.list th,
+  table.list td,
+  table.etab th,
+  table.etab td {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+  table.etab .siret {
+    font-size: 14px;
+  }
+
+  .panel h3,
+  .etabs-box h3 {
+    font-size: 16px;
+    padding: 5px 10px;
+  }
+  .panel h4,
+  .etabs-box h4 {
+    font-size: 16px;
+  }
+
+  .pill.type,
+  .pill.etab-type {
+    font-size: 13px;
+    padding: 4px 10px;
+  }
+
+  /* Admin sur mobile */
+  .card {
+    padding: 14px;
+  }
+  fieldset {
+    padding: 10px;
+  }
+  .row,
+  .sub-row {
+    grid-template-columns: 1fr;
+  }
+  .actions .btn {
+    flex: 1 1 auto;
+  }
 }
