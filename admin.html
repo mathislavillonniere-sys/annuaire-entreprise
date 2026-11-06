@@ -46,7 +46,9 @@
             </h2>
             <button class="btn" id="newBtn">+ Nouvelle entreprise</button>
           </div>
-          <table class="list" id="tbl"></table>
+          <div class="etab-wrap">
+            <table class="list" id="tbl"></table>
+          </div>
         </div>
 
         <form id="form" class="card hidden">
@@ -250,6 +252,13 @@
         "Ancien propriétaire (Cédé / Repris)",
       ];
 
+      const estAncienStatut = (g) => {
+        if (g.dateFin) return true;
+        const t = g.type || "";
+        if (/^reprise|^rachat/i.test(t)) return false;
+        return /^ancien|cédé|cede/i.test(t);
+      };
+
       /* ---------- Génération automatique du NIC ---------- */
       function genererNic(siren, numEtab = 1) {
         const sirenClean = String(siren || "").replace(/\D/g, "");
@@ -358,10 +367,11 @@
           ],
         },
         finances: {
-          title: "Données financières (une ligne par exercice)",
+          title:
+            "Données financières (une ligne par exercice — clôture auto au 31/12)",
           cols: [
-            ["annee", "Année"],
-            ["dateCloture", "Date de clôture", "date"],
+            ["annee", "Année (ex. 2025)"],
+            ["dateCloture", "Date de clôture (auto 31/12, modifiable)", "date"],
             [
               "type",
               "Type de bilan",
@@ -638,11 +648,16 @@
 
         // Bouton de transfert rapide d'un établissement vers un repreneur
         sr.querySelector(".transfer-sub-grp").addEventListener("click", () => {
-          const ancienNom = inpGrp.value.trim();
+          const ancienNom =
+            inpGrp.value.trim() || $("denomination").value.trim();
           const info = promptReprise(ancienNom);
           if (!info) return;
 
           // 1. Archive la ligne actuelle (conserve le rattachement à l'ancien groupe)
+          if (!inpGrp.value.trim() && $("denomination").value.trim()) {
+            inpGrp.value = $("denomination").value.trim();
+            inpCode.value = $("siren").value.trim();
+          }
           sr.querySelector('[data-subgk="dateFin"]').value = info.dateReprise;
           if (![...selType.options].some((o) => o.value === info.motifAncien)) {
             selType.add(new Option(info.motifAncien, info.motifAncien));
@@ -704,6 +719,10 @@
               }
               return `<div><label>${label}</label><input data-k="${k}" type="${type || "text"}" ${
                 k === "pourcentage" ? 'min="0" max="100" step="0.01"' : ""
+              } ${
+                sec === "finances" && k === "annee"
+                  ? 'placeholder="Ex. 2025" maxlength="4"'
+                  : ""
               } value="${esc(values[k])}"></div>`;
             })
             .join("") +
@@ -741,6 +760,43 @@
             refreshActivitesDatalist();
           });
           a.addEventListener("input", refreshActivitesDatalist);
+        }
+
+        // Remplissage automatique de la date de clôture au 31/12 de l'année saisie (modifiable manuellement)
+        if (sec === "finances") {
+          const inpAnnee = row.querySelector('input[data-k="annee"]');
+          const inpCloture = row.querySelector('input[data-k="dateCloture"]');
+
+          // Si une année est déjà présente sans date de clôture, on pré-remplit au 31/12
+          if (
+            inpAnnee.value &&
+            /^\d{4}$/.test(inpAnnee.value.trim()) &&
+            !inpCloture.value
+          ) {
+            inpCloture.value = `${inpAnnee.value.trim()}-12-31`;
+          }
+
+          let clotureModifieeManuellement = Boolean(
+            values.dateCloture &&
+            values.annee &&
+            values.dateCloture !== `${values.annee}-12-31`,
+          );
+
+          inpCloture.addEventListener("input", () => {
+            const a = inpAnnee.value.trim();
+            clotureModifieeManuellement =
+              inpCloture.value !== "" && inpCloture.value !== `${a}-12-31`;
+          });
+
+          inpAnnee.addEventListener("input", () => {
+            const a = inpAnnee.value.trim();
+            if (
+              /^\d{4}$/.test(a) &&
+              (!inpCloture.value || !clotureModifieeManuellement)
+            ) {
+              inpCloture.value = `${a}-12-31`;
+            }
+          });
         }
 
         // Sous-blocs propres à chaque établissement : (1) NAF secondaires + (2) Groupes / Repreneurs de l'établissement
@@ -953,9 +1009,7 @@
               const nbEtabs = 1 + (e.etablissements || []).length;
               const grps = (e.groupes || [])
                 .map((g) => {
-                  const anc =
-                    Boolean(g.dateFin) ||
-                    /ancien|cédé|cede|faillite|liquidation/i.test(g.type || "");
+                  const anc = estAncienStatut(g);
                   return `${anc ? "<s class='muted' title='Ancien propriétaire'>" : ""}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` (${g.pourcentage} %)` : ""}${anc ? "</s>" : ""}`;
                 })
                 .join(", ");
