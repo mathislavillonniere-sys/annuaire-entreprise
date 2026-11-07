@@ -27,14 +27,14 @@
     <section class="hero">
       <h1>Trouvez toutes les entreprises fictives</h1>
       <p>
-        Recherchez une entreprise ou un établissement par son nom, son groupe,
-        son enseigne, son adresse ou son numéro SIREN/SIRET et consultez sa
-        fiche.
+        Recherchez une entreprise ou un établissement par son nom (actuel ou
+        ancien), son groupe, son enseigne, son adresse ou son numéro SIREN/SIRET
+        et consultez sa fiche.
       </p>
       <form id="search" class="hero-search">
         <input
           id="q"
-          placeholder="Nom, groupe, enseigne d'établissement, adresse, n° SIRET/SIREN…"
+          placeholder="Nom, ancien nom, groupe, enseigne, adresse, n° SIRET/SIREN…"
           autocomplete="off"
         />
         <button>Rechercher</button>
@@ -76,6 +76,8 @@
           ].filter(Boolean),
         ),
       ];
+      const anciensNomsDe = (e) =>
+        (e.historiqueNoms || []).map((h) => h.ancienNom).filter(Boolean);
       const nafsDe = (e) =>
         [
           e.naf,
@@ -92,6 +94,13 @@
           ...(e.groupes || []),
           ...(e.etablissements || []).flatMap((et) => et.groupes || []),
         ].filter((g) => g.groupe);
+
+      const estAncien = (g) => {
+        if (g.dateFin) return true;
+        const t = g.type || "";
+        if (/^reprise|^rachat/i.test(t)) return false;
+        return /^ancien|cédé|cede/i.test(t);
+      };
 
       /* Statistiques */
       const actives = all.filter((e) => e.statut !== "Cessée").length;
@@ -148,6 +157,7 @@
               e.denomination,
               e.nomCommercial,
               e.sigle,
+              ...anciensNomsDe(e),
               ...enseignesDe(e),
               ...groupesDe(e).map(
                 (g) => `${g.groupe} ${g.activiteCible || ""}`,
@@ -178,11 +188,9 @@
           ? found
               .map((e) => {
                 const ens = enseignesDe(e);
+                const ancNoms = anciensNomsDe(e);
                 const grps = (e.groupes || []).filter(
-                  (g) =>
-                    g.groupe &&
-                    !g.dateFin &&
-                    !/ancien|cédé|cede/i.test(g.type || ""),
+                  (g) => g.groupe && !estAncien(g),
                 );
                 const nbEt = 1 + (e.etablissements || []).length;
                 return `
@@ -192,6 +200,7 @@
             <strong>${esc(e.denomination)}</strong>
             <span class="pill ${e.statut === "Cessée" ? "off" : "on"}">${e.statut === "Cessée" ? "Cessée" : "En activité"}</span>
             ${grps.map((g) => `<span class="pill grp" style="margin-left:4px">${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` · ${g.pourcentage}%` : ""}</span>`).join("")}
+            ${ancNoms.length ? `<div class="muted"><em>Ancien nom : ${ancNoms.map(esc).join(", ")}</em></div>` : ""}
             ${e.nomCommercial || ens.length ? `<div class="muted">${[e.nomCommercial, ...ens].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
             <div class="muted">SIREN ${fmtSiren(e.siren)} · ${nbEt} établissement${nbEt > 1 ? "s" : ""}</div>
             <div class="muted">${esc(e.activite)}</div>

@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fiche établissement fictif</title>
+    <link rel="stylesheet" href="style.css" />
     <link
       rel="icon"
       type="image/png"
       sizes="32x32"
       href="images/apple_touch_icon_8ffa1fa80c.png"
     />
-    <title>Fiche établissement fictif</title>
-    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="notice">
@@ -95,7 +95,7 @@
         if (!rawEtab) {
           app.innerHTML = `<h1>Établissement introuvable</h1><p><a href="entreprise.html?id=${esc(e.id)}">← Retour à l'entreprise ${esc(e.denomination)}</a></p>`;
         } else {
-          /* CORRECTION : Ne pas confondre "Reprise / Rachat suite à faillite" (actif) avec "Ancien groupe (Faillite)" (ancien) */
+          /* Détection précise : Ancien groupe vs Repreneur vs Filiale normale */
           const estAncien = (g) => {
             if (g.dateFin) return true;
             const t = g.type || "";
@@ -110,11 +110,12 @@
           const siret =
             rawEtab.siret || (e.siren || "") + (rawEtab.nic || targetNic);
 
-          /* Groupes rattachés à cet établissement */
+          /* Groupes rattachés à cet établissement (directement ou via son unité légale) */
           const groupesEtab = [
             ...(rawEtab.groupes || []).map((g) => ({
               ...g,
               portee: g.activiteCible || "Cet établissement",
+              fromEtab: true,
             })),
             ...(!isSiege
               ? (e.groupes || []).map((g) => ({
@@ -122,22 +123,24 @@
                   portee: g.activiteCible
                     ? `${g.activiteCible} (via unité légale)`
                     : "Via l'unité légale mère",
+                  fromEtab: false,
                 }))
               : []),
           ].filter((g) => g.groupe);
 
           const groupesActuels = groupesEtab.filter((g) => !estAncien(g));
 
-          // Si l'établissement a été repris par un autre groupe (ou si le groupe d'origine e.denomination est Cessé/Liquidé),
-          // on ajoute automatiquement l'unité légale d'origine (ex: Groupe NEXA TV) dans les anciens groupes si elle n'y figure pas déjà !
-          const aUnRepreneurExterne = groupesActuels.some(
-            (g) =>
-              norm(g.groupe) !== norm(e.denomination) &&
-              String(g.sirenGroupe || "").replace(/\s/g, "") !== e.siren,
+          // CORRECTION : On n'ajoute l'entreprise d'origine (e.denomination) comme "Ancien groupe" QUE SI :
+          // 1) L'entreprise d'origine est effectivement Cessée/Liquidée (e.statut === "Cessée")
+          // OU 2) L'établissement lui-même a une ligne marquée explicitement "Reprise / Rachat..."
+          const etabExplicitementRepris = (rawEtab.groupes || []).some((g) =>
+            estReprise(g),
           );
+
           if (
             !isSiege &&
-            (e.statut === "Cessée" || aUnRepreneurExterne) &&
+            (e.statut === "Cessée" || etabExplicitementRepris) &&
+            groupesActuels.length > 0 &&
             !groupesEtab.some(
               (g) =>
                 estAncien(g) &&
@@ -155,19 +158,22 @@
               type:
                 e.statut === "Cessée"
                   ? "Ancien groupe (Faillite / Liquidation)"
-                  : "Ancien groupe d'origine",
+                  : "Ancien groupe (Cédé)",
               dateDebut: rawEtab.dateCreation || e.dateCreation || "",
               dateFin: e.dateCessation || dateReprise || "Liquidé",
               commentaire:
                 e.statut === "Cessée"
-                  ? `Groupe d'origine liquidé${groupesActuels.length ? ` — Établissement repris par ${groupesActuels.map((x) => x.groupe).join(", ")}` : ""}`
-                  : "Ancien propriétaire avant reprise",
+                  ? `Groupe d'origine liquidé — Établissement repris par ${groupesActuels.map((x) => x.groupe).join(", ")}`
+                  : "Ancien propriétaire avant reprise de l'établissement",
             });
           }
 
           const anciensGroupes = groupesEtab.filter((g) => estAncien(g));
+          const aUneReprise =
+            anciensGroupes.length > 0 ||
+            groupesActuels.some((g) => estReprise(g));
 
-          /* CORRECTION STATUT : Si l'établissement n'a pas de dateFermeture propre et qu'il a un repreneur actif, il est EN ACTIVITÉ même si son ancien groupe (e.statut) est Cessée ! */
+          /* Statut d'activité de l'établissement */
           const reprisEtActif =
             !isSiege && !rawEtab.dateFermeture && groupesActuels.length > 0;
           const actif =
@@ -370,7 +376,7 @@
           });
 
           app.innerHTML = `
-            <p><a href="entreprise.html?id=${esc(e.id)}">← Retour à la fiche d'origine ${esc(e.denomination)}</a></p>
+            <p><a href="entreprise.html?id=${esc(e.id)}">← Retour à la fiche de l'entreprise ${esc(e.denomination)}</a></p>
             <h1>${esc(rawEtab.enseigne || e.denomination)}</h1>
             <p>
               <span class="pill etab-type">${isSiege ? "Établissement Siège social" : "Établissement secondaire"}</span>
@@ -383,18 +389,20 @@
                   : "Fermé"
               }</span>
               ${groupesActuels.map((g) => `<span class="pill grp" style="margin-left:6px">${estReprise(g) ? "Repris par : " : "Groupe : "}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` (${g.pourcentage} %)` : ""}</span>`).join("")}
-              ${anciensGroupes.map((g) => `<span class="pill off" style="margin-left:6px;text-transform:none">Ancien groupe (liquidé) : ${esc(g.groupe)}</span>`).join("")}
+              ${anciensGroupes.map((g) => `<span class="pill off" style="margin-left:6px;text-transform:none">Ancien groupe : ${esc(g.groupe)}</span>`).join("")}
             </p>
 
             ${repriseBanner}
 
             <p class="intro">
-              Cet établissement (SIRET <strong>${fmtSiret(siret)}</strong>) a été créé au sein de l'entreprise
+              Cet établissement (SIRET <strong>${fmtSiret(siret)}</strong>) est ${isSiege ? "le <strong>siège social</strong>" : "un <strong>établissement</strong>"} de l'entreprise
               <a href="entreprise.html?id=${esc(e.id)}"><strong>${esc(e.denomination)}</strong></a> (SIREN ${fmtSiren(e.siren)}${e.statut === "Cessée" ? " — <em>entreprise liquidée / cessée</em>" : ""}).
               ${rawEtab.enseigne ? `Il exerce sous l'enseigne <strong>${esc(rawEtab.enseigne)}</strong>.` : ""}
               ${
                 groupesActuels.length
-                  ? `Il est aujourd'hui détenu par ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe)}${g.dateDebut ? ` (repris le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
+                  ? aUneReprise
+                    ? `Il est aujourd'hui repris et détenu par ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe)}${g.dateDebut ? ` (repris le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
+                    : `Il est rattaché à ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe)}${g.dateDebut ? ` (depuis le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
                   : ""
               }
               Son activité principale est : <strong>${esc(mainAct)}</strong> (${esc(mainNaf)}).
@@ -414,17 +422,21 @@
               <h3>Informations de l'établissement</h3>
               <table class="info">
                 <tr><th>SIRET de l'établissement</th><td><strong>${fmtSiret(siret)}</strong> (NIC : ${esc(targetNic)})</td></tr>
-                <tr><th>Groupe / Unité légale d'origine</th><td>
+                <tr><th>${e.statut === "Cessée" ? "Groupe / Unité légale d'origine" : "Unité légale (Entreprise mère)"}</th><td>
                   <a href="entreprise.html?id=${esc(e.id)}"><strong>${esc(e.denomination)}</strong></a> — SIREN ${fmtSiren(e.siren)}
-                  ${e.statut === "Cessée" ? `<span class="pill off" style="margin-left:8px;text-transform:none">Liquidée / Cessée${e.dateCessation ? ` le ${fmtDate(e.dateCessation)}` : ""}</span>` : ""}
+                  ${e.statut === "Cessée" ? `<span class="pill off" style="margin-left:8px;text-transform:none">Liquidée / Cessée${e.dateCessation ? ` le ${fmtDate(e.dateCessation)}` : ""}</span>` : `<span class="pill on" style="margin-left:8px;text-transform:none">En activité</span>`}
                 </td></tr>
                 ${
                   groupesActuels.length
-                    ? `<tr><th>Groupe / Repreneur actuel</th><td>${groupesActuels
-                        .map(
-                          (g) =>
-                            `${resolveOwnerLink(g.groupe, g.sirenGroupe)} <span class="pill on" style="margin-left:6px;text-transform:none">${g.dateDebut ? `Repris le ${fmtDate(g.dateDebut)}` : "Propriétaire actuel"} (${g.pourcentage ?? 100} %)</span>`,
-                        )
+                    ? `<tr><th>${aUneReprise ? "Groupe / Repreneur actuel" : "Groupe / Actionnaire"}</th><td>${groupesActuels
+                        .map((g) => {
+                          const rep = estReprise(g) || e.statut === "Cessée";
+                          return `${resolveOwnerLink(g.groupe, g.sirenGroupe)} <span class="pill ${rep ? "on" : "grp"}" style="margin-left:6px;text-transform:none">${
+                            g.dateDebut
+                              ? `${rep ? "Repris le" : "Depuis le"} ${fmtDate(g.dateDebut)}`
+                              : "Actionnaire actuel"
+                          } (${g.pourcentage ?? 100} %)</span>`;
+                        })
                         .join("<br>")}</td></tr>`
                     : ""
                 }
@@ -440,7 +452,7 @@
                 <tr><th>Date de création</th><td>${fmtDate(rawEtab.dateCreation || e.dateCreation)}</td></tr>
               </table>
 
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:24px;margin-top:32px">
+              <div class="two-col-grid">
                 <section class="etabs-box" style="margin-top:0">
                   <h3>Activités NAF de cet établissement</h3>
                   <p class="muted" style="margin-top:0">Chaque établissement possède ses propres codes NAF (principale et secondaires) :</p>
@@ -464,11 +476,11 @@
 
                 <section class="etabs-box" style="margin-top:0">
                   <h3>Groupes, Reprises & Détention de cet établissement</h3>
-                  <h4>Rattachement (Repreneur actuel & Ancien groupe liquidé)</h4>
+                  <h4>Rattachement (${aUneReprise ? "Repreneur actuel & Ancien groupe" : "Groupes & Actionnariat"})</h4>
                   ${
                     groupesEtab.length
                       ? `<div class="etab-wrap"><table class="list">
-                          <tr><th>Groupe / Repreneur</th><th>Périmètre</th><th>Statut & Période</th><th>Détention</th></tr>
+                          <tr><th>Groupe / Propriétaire</th><th>Périmètre</th><th>Statut & Période</th><th>Détention</th></tr>
                           ${groupesEtab
                             .map((g) => {
                               const anc = estAncien(g);
@@ -477,7 +489,7 @@
                                 <td>${resolveOwnerLink(g.groupe, g.sirenGroupe)}</td>
                                 <td>${esc(g.portee)}</td>
                                 <td>
-                                  <span class="pill ${anc ? "off" : "on"}" style="text-transform:none">${esc(anc ? g.type || "Ancien groupe (Liquidé)" : rep ? "Repris / Actif" : g.type || "Rattaché")}</span>
+                                  <span class="pill ${anc ? "off" : "on"}" style="text-transform:none">${esc(anc ? g.type || "Ancien groupe" : rep ? "Repris / Actif" : g.type || "Filiale / Rattaché")}</span>
                                   <div class="muted" style="margin-top:4px">
                                     <strong>${fmtPeriode(g.dateDebut, g.dateFin, anc, rep)}</strong>
                                     ${g.commentaire ? `<br><em>${esc(g.commentaire)}</em>` : ""}

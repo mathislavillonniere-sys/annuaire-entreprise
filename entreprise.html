@@ -180,8 +180,10 @@
         const age = yearsSince(e.dateCreation);
         const activite = e.activite || nafLabel(e.naf);
         const siegeNic = e.nic || "00015";
+        const historiqueNoms = (e.historiqueNoms || []).filter(
+          (h) => h.ancienNom,
+        );
 
-        /* CORRECTION : "Reprise / Rachat suite à faillite" est un REPRENEUR ACTIF, pas un ancien groupe ! */
         const estAncien = (g) => {
           if (g.dateFin) return true;
           const t = g.type || "";
@@ -193,7 +195,7 @@
           (/reprise|rachat/i.test(g.type || "") ||
             /repris/i.test(g.commentaire || ""));
 
-        /* Résolution des liens vers une Entreprise OU vers la fiche d'un Établissement propriétaire */
+        /* Résolution des liens vers une Entreprise (y compris via son ancien nom) OU vers la fiche d'un Établissement propriétaire */
         const resolveOwnerLink = (nom, code) => {
           const clean = String(code || "").replace(/\s/g, "");
           if (clean.length === 14) {
@@ -208,7 +210,11 @@
             (x) =>
               (clean.length === 9 && x.siren === clean) ||
               (nom && norm(x.denomination) === norm(nom)) ||
-              (nom && norm(x.nomCommercial || "") === norm(nom)),
+              (nom && norm(x.nomCommercial || "") === norm(nom)) ||
+              (nom &&
+                (x.historiqueNoms || []).some(
+                  (h) => norm(h.ancienNom) === norm(nom),
+                )),
           );
           if (ent) {
             return `<a href="entreprise.html?id=${esc(ent.id)}"><strong>${esc(nom || ent.denomination)}</strong></a> <span class="muted">(SIREN ${fmtSiren(ent.siren)})</span>`;
@@ -230,7 +236,7 @@
           return `<strong>${esc(nom)}</strong>${clean ? ` <span class="muted">(${esc(clean)})</span>` : ""}`;
         };
 
-        /* Établissements (un établissement repris par un autre groupe reste OUVERT même si l'entreprise mère a fait faillite) */
+        /* Établissements */
         const siege = {
           nic: siegeNic,
           siret: (e.siren || "") + siegeNic,
@@ -258,7 +264,6 @@
           const hasActiveRepreneur = grps.some(
             (g) => g.groupe && !estAncien(g),
           );
-          // Si l'entreprise mère est cessée mais que cet établissement a un repreneur actif et pas de dateFermeture propre -> il reste En activité !
           const dateFerm =
             x.dateFermeture ||
             (!actif && !hasActiveRepreneur ? e.dateCessation || "Fermé" : "");
@@ -403,17 +408,19 @@
         const groupes = tousGroupes.filter((g) => !estAncien(g));
         const anciensGroupes = tousGroupes.filter((g) => estAncien(g));
 
-        /* Filiales ET Établissements détenus (actuels ou anciens) par l'entreprise OU par l'un de ses établissements */
+        /* Filiales ET Établissements détenus (reconnaît aussi l'entreprise si ses filiales référençaient son ancien nom) */
         const mySirets = new Set(tous.map((t) => t.siret));
         const myNames = new Set(
           [
             e.denomination,
             e.nomCommercial,
+            ...historiqueNoms.map((h) => h.ancienNom),
             ...tous
               .filter((t) => t.enseigne)
               .flatMap((t) => [
                 t.enseigne,
                 `${t.enseigne} (${e.denomination})`,
+                ...historiqueNoms.map((h) => `${t.enseigne} (${h.ancienNom})`),
               ]),
           ]
             .filter(Boolean)
@@ -437,7 +444,6 @@
 
         const filiales = [];
         allEntreprises.forEach((cand) => {
-          // 1. Filiales (Unités légales entières ou branches)
           if (cand.id !== id) {
             (cand.groupes || []).forEach((g) => {
               const clean = String(g.sirenGroupe || "").replace(/\s/g, "");
@@ -474,7 +480,6 @@
             });
           }
 
-          // 2. Établissements spécifiques rattachés ou repris (ex: NEXA TV repris par Pôle Média TF1 Camping Paradis suite à la liquidation de Groupe NEXA TV)
           (cand.etablissements || []).forEach((et) => {
             if (cand.id === id) return;
             const etSiret = et.siret || (cand.siren || "") + (et.nic || "");
@@ -493,7 +498,6 @@
                   (cand.groupes || []).find((x) => x.groupe && !estAncien(x))
                 : null;
 
-              // Si l'établissement a été repris d'une autre entreprise (ex: Groupe NEXA TV), l'ancien propriétaire par défaut est cette entreprise d'origine !
               let ancienObj = !anc
                 ? (et.groupes || []).find((x) => x.groupe && estAncien(x)) ||
                   (cand.groupes || []).find((x) => x.groupe && estAncien(x))
@@ -536,7 +540,6 @@
           return ancien ? "Ancienne détention" : "Actuel";
         };
 
-        /* Bannière d'historique si l'entreprise a été reprise suite à une faillite / cession */
         const repriseBanner =
           anciensGroupes.length && groupes.length
             ? `<div class="reprise-banner">
@@ -627,16 +630,55 @@
           }
         </section>`;
 
-        /* Nom et enseigne */
+        /* Nom, historique des dénominations et enseignes */
         const enseignes = tous.filter((x) => x.enseigne);
+        const fmtPeriodeNom = (h) => {
+          if (h.dateDebut && h.dateChangement)
+            return `Du ${fmtDate(h.dateDebut)} au ${fmtDate(h.dateChangement)}`;
+          if (h.dateChangement) return `Jusqu'au ${fmtDate(h.dateChangement)}`;
+          if (h.dateDebut) return `Depuis le ${fmtDate(h.dateDebut)}`;
+          return "Ancienne dénomination";
+        };
+
         const nomBox = `
         <section class="etabs-box" style="margin-top:0">
-          <h3>Nom et enseigne</h3>
+          <h3>Nom, historique et enseigne</h3>
           <table class="info">
-            <tr><th>Dénomination (nom légal)</th><td>${esc(e.denomination)}</td></tr>
+            <tr><th>Dénomination actuelle</th><td><strong>${esc(e.denomination)}</strong></td></tr>
+            ${
+              historiqueNoms.length
+                ? `<tr><th>Ancienne${historiqueNoms.length > 1 ? "s" : ""} dénomination${historiqueNoms.length > 1 ? "s" : ""}</th><td>
+                    ${historiqueNoms
+                      .map(
+                        (h) =>
+                          `<div><strong>${esc(h.ancienNom)}</strong> <span class="muted">(${fmtPeriodeNom(h)}${h.motif ? ` — ${esc(h.motif)}` : ""})</span></div>`,
+                      )
+                      .join("")}
+                  </td></tr>`
+                : ""
+            }
             ${e.nomCommercial ? `<tr><th>Nom commercial</th><td>${esc(e.nomCommercial)}</td></tr>` : ""}
             ${e.sigle ? `<tr><th>Sigle</th><td>${esc(e.sigle)}</td></tr>` : ""}
           </table>
+
+          ${
+            historiqueNoms.length
+              ? `<h4>Historique des changements de nom (${historiqueNoms.length})</h4>
+                <div class="etab-wrap"><table class="list">
+                  <tr><th>Ancien nom / Dénomination</th><th>Période d'utilisation</th><th>Motif / Nature</th></tr>
+                  ${historiqueNoms
+                    .map(
+                      (h) => `<tr>
+                        <td><strong>${esc(h.ancienNom)}</strong></td>
+                        <td>${fmtPeriodeNom(h)}</td>
+                        <td><span class="pill reprise">${esc(h.motif || "Changement de dénomination")}</span></td>
+                      </tr>`,
+                    )
+                    .join("")}
+                </table></div>`
+              : ""
+          }
+
           <h4>Enseigne${enseignes.length > 1 ? "s" : ""} (cliquer pour ouvrir la fiche de l'établissement)</h4>
           ${
             enseignes.length
@@ -657,8 +699,8 @@
 
         const table = (cols, rows) =>
           rows.length
-            ? `<table class="list"><tr>${cols.map((c) => `<th>${c[1]}</th>`).join("")}</tr>
-           ${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[2] ? c[2](r[c[0]]) : esc(r[c[0]])}</td>`).join("")}</tr>`).join("")}</table>`
+            ? `<div class="etab-wrap"><table class="list"><tr>${cols.map((c) => `<th>${c[1]}</th>`).join("")}</tr>
+           ${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[2] ? c[2](r[c[0]]) : esc(r[c[0]])}</td>`).join("")}</tr>`).join("")}</table></div>`
             : "<p class='muted'>Aucune information disponible.</p>";
 
         /* Finances */
@@ -686,6 +728,7 @@
           <span class="pill type">Unité légale</span>
           <span class="muted">‣ ${fmtSiren(e.siren)}</span>
           <span class="pill ${actif ? "on" : "off"}">${actif ? "En activité" : "Cessée / Liquidée"}</span>
+          ${historiqueNoms.map((h) => `<span class="pill reprise" style="margin-left:6px">Ancien nom : ${esc(h.ancienNom)}${h.dateChangement ? ` (jusqu'au ${fmtDate(h.dateChangement)})` : ""}</span>`).join("")}
           ${groupes.map((g) => `<span class="pill grp" style="margin-left:6px">${estReprise(g) ? "Repris par : " : "Groupe : "}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` (${g.pourcentage} %)` : ""}</span>`).join("")}
           ${anciensGroupes.map((g) => `<span class="pill off" style="margin-left:6px;text-transform:none">Ancien groupe : ${esc(g.groupe)}</span>`).join("")}
         </p>
@@ -694,7 +737,16 @@
         ${repriseBanner}
 
         <p class="intro">
-          La société ${esc(e.denomination)} a été créée le <strong>${fmtDate(e.dateCreation)}</strong>, il y a ${age} ans.
+          La société <strong>${esc(e.denomination)}</strong>${
+            historiqueNoms.length
+              ? ` (anciennement dénommée ${historiqueNoms
+                  .map(
+                    (h) =>
+                      `<strong>${esc(h.ancienNom)}</strong>${h.dateChangement ? ` jusqu'au ${fmtDate(h.dateChangement)}` : ""}`,
+                  )
+                  .join(", ")})`
+              : ""
+          } a été créée le <strong>${fmtDate(e.dateCreation)}</strong>, il y a ${age} ans.
           Sa forme juridique est <strong>${esc(e.formeJuridique)}</strong>.
           Son domaine d'activité principal est : ${esc(activite)}.
           ${e.categorie ? `En ${new Date().getFullYear() - 2}, elle était catégorisée ${esc(e.categorie)}.` : ""}
@@ -711,7 +763,7 @@
           <button data-t="dirigeants">Dirigeants</button>
           <button data-t="documents">Documents</button>
           <button data-t="finances">Données financières</button>
-          <button data-t="annonces">Annonces et observations</button>
+          <button data-t="annonces">Annonces et observations (${(e.annonces || []).length})</button>
           <button data-t="conventions">Conventions collectives</button>
         </div>
 
@@ -722,7 +774,19 @@
               <span class="pill on">Inscrite (Insee)</span> le ${fmtDate(e.dateImmatriculation || e.dateCreation)}<br><br>
               <span class="pill on">Immatriculée au RNE</span> le ${fmtDate(e.dateImmatriculation || e.dateCreation)}
             </td></tr>
-            <tr><th>Dénomination</th><td>${esc(e.denomination)}</td></tr>
+            <tr><th>Dénomination</th><td><strong>${esc(e.denomination)}</strong></td></tr>
+            ${
+              historiqueNoms.length
+                ? `<tr><th>Historique des dénominations</th><td>
+                    ${historiqueNoms
+                      .map(
+                        (h) =>
+                          `<div><strong>${esc(h.ancienNom)}</strong> — ${fmtPeriodeNom(h)}${h.motif ? ` <em>(${esc(h.motif)})</em>` : ""}</div>`,
+                      )
+                      .join("")}
+                  </td></tr>`
+                : ""
+            }
             <tr><th>SIREN</th><td>${fmtSiren(e.siren)}</td></tr>
             <tr><th>SIRET du siège social</th><td><a href="${etabUrl(siege)}"><strong>${fmtSiret(siege.siret)}</strong> (Voir la fiche de l'établissement siège →)</a></td></tr>
             <tr><th>Forme juridique</th><td>${esc(e.formeJuridique)}</td></tr>
@@ -734,7 +798,7 @@
             <tr><th>Adresse du siège</th><td>${esc(e.adresse)} ${esc(e.cp)} ${esc(e.ville)}</td></tr>
           </table>
 
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:24px;margin-top:32px">
+          <div class="two-col-grid">
             ${nomBox}
             ${nafBox}
           </div>

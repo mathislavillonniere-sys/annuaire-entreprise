@@ -62,8 +62,18 @@
 
           <div class="grid">
             <div>
-              <label>Dénomination (nom légal) *</label
-              ><input id="denomination" required />
+              <label>Dénomination (nom légal) *</label>
+              <div style="display: flex; gap: 6px">
+                <input id="denomination" required />
+                <button
+                  type="button"
+                  class="btn small reprise-btn hidden"
+                  id="btnRename"
+                  title="Archiver le nom actuel dans l'historique et saisir la nouvelle dénomination"
+                >
+                  ✏️ Renommer
+                </button>
+              </div>
             </div>
             <div>
               <label>Nom commercial</label
@@ -171,8 +181,9 @@
                 <option>10 à 19</option>
                 <option>20 à 49</option>
                 <option>50 à 99</option>
-                <option>100 à 249</option>
-                <option>250 et plus</option>
+                <option>100 à 500</option>
+                <option>500 à 1000</option>
+                <option>1000 et plus</option>
               </select>
             </div>
             <div>
@@ -220,7 +231,7 @@
         signInWithEmailAndPassword,
         signOut,
       } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-      import { esc, norm, fmtSiren, fmtSiret } from "./utils.js";
+      import { esc, norm, fmtSiren, fmtSiret, fmtDate } from "./utils.js";
       import { NAF } from "./naf.js";
 
       const $ = (id) => document.getElementById(id);
@@ -305,6 +316,23 @@
       }
 
       const SECTIONS = {
+        historiqueNoms: {
+          title:
+            "Historique des dénominations & anciens noms de l'entreprise (conservé sur la fiche)",
+          cols: [
+            ["ancienNom", "Ancienne dénomination / Ancien nom"],
+            [
+              "dateDebut",
+              "Utilisé du (création ou précédent changement)",
+              "date",
+            ],
+            ["dateChangement", "Jusqu'au (date du changement de nom)", "date"],
+            [
+              "motif",
+              "Nature / Motif (ex. Changement de dénomination sociale, Rebranding…)",
+            ],
+          ],
+        },
         nafSecondaires: {
           title: "Codes NAF secondaires du siège social (et de l'unité légale)",
           cols: [
@@ -393,7 +421,7 @@
           title: "Annonces et observations",
           cols: [
             ["date", "Date", "date"],
-            ["type", "Type (BODACC…)"],
+            ["type", "Type (BODACC, Changement de nom…)"],
             ["texte", "Détail"],
           ],
         },
@@ -407,7 +435,65 @@
       };
 
       let editingId = null;
+      let originalDenomination = "";
+      let originalDateCreation = "";
       let knownEntities = [];
+
+      /* ---------- Assistant de changement de nom d'une entreprise ---------- */
+      $("btnRename").addEventListener("click", () => {
+        const currentNom =
+          $("denomination").value.trim() || originalDenomination;
+        if (!currentNom) return;
+
+        const nouveauNom = prompt(
+          `Nouvelle dénomination sociale (remplace « ${currentNom} ») :`,
+        );
+        if (
+          !nouveauNom ||
+          !nouveauNom.trim() ||
+          nouveauNom.trim() === currentNom
+        )
+          return;
+
+        const today = new Date().toISOString().slice(0, 10);
+        const dateChg = prompt(
+          `Date d'effet du changement de nom (passage de « ${currentNom} » à « ${nouveauNom.trim()} ») :`,
+          today,
+        );
+        if (!dateChg) return;
+
+        const motif =
+          prompt(
+            "Motif ou mention à afficher dans l'historique :",
+            "Changement de dénomination sociale",
+          ) || "Changement de dénomination sociale";
+
+        // Cherche la date de début de ce nom (soit la fin du précédent changement de nom, soit la date de création)
+        const existingHist = collect("historiqueNoms");
+        const lastChangeDate =
+          existingHist.length > 0
+            ? existingHist[existingHist.length - 1].dateChangement || ""
+            : $("dateCreation").value || originalDateCreation || "";
+
+        // 1. Ajoute l'ancien nom dans la section Historique des dénominations
+        addRow("historiqueNoms", {
+          ancienNom: currentNom,
+          dateDebut: lastChangeDate,
+          dateChangement: dateChg.trim(),
+          motif: motif.trim(),
+        });
+
+        // 2. Ajoute automatiquement une trace dans les Annonces et observations
+        addRow("annonces", {
+          date: dateChg.trim(),
+          type: "Modification de dénomination",
+          texte: `Ancienne dénomination : « ${currentNom} » — Nouvelle dénomination : « ${nouveauNom.trim()} » (${motif.trim()}).`,
+        });
+
+        // 3. Met à jour le champ dénomination et mémorise pour éviter un doublon à l'enregistrement
+        $("denomination").value = nouveauNom.trim();
+        originalDenomination = nouveauNom.trim();
+      });
 
       /* ---------- Assistant de reprise suite à faillite / cession ---------- */
       function promptReprise(ancienNom) {
@@ -659,7 +745,6 @@
           const info = promptReprise(ancienNom);
           if (!info) return;
 
-          // 1. Archive la ligne actuelle (conserve le rattachement à l'ancien groupe)
           if (!inpGrp.value.trim() && $("denomination").value.trim()) {
             inpGrp.value = $("denomination").value.trim();
             inpCode.value = $("siren").value.trim();
@@ -672,7 +757,6 @@
           const inpComm = sr.querySelector('[data-subgk="commentaire"]');
           inpComm.value = `Repris par ${info.repreneurNom} le ${new Date(info.dateReprise + "T00:00:00").toLocaleDateString("fr-FR")}`;
 
-          // 2. Crée automatiquement la nouvelle ligne pour le repreneur
           addEtabSubGroupe(container, {
             groupe: info.repreneurNom,
             sirenGroupe: info.repreneurCode,
@@ -773,7 +857,6 @@
           const inpAnnee = row.querySelector('input[data-k="annee"]');
           const inpCloture = row.querySelector('input[data-k="dateCloture"]');
 
-          // Si une année est déjà présente sans date de clôture, on pré-remplit au 31/12
           if (
             inpAnnee.value &&
             /^\d{4}$/.test(inpAnnee.value.trim()) &&
@@ -865,7 +948,6 @@
             const info = promptReprise(ancienNom);
             if (!info) return;
 
-            // 1. Archive l'ancien groupe sur cette ligne (garde l'affiliation sur la fiche de l'ancien groupe)
             row.querySelector('input[data-k="dateFin"]').value =
               info.dateReprise;
             if (
@@ -879,7 +961,6 @@
               inpComm.value = `Reprise par ${info.repreneurNom} le ${new Date(info.dateReprise + "T00:00:00").toLocaleDateString("fr-FR")}`;
             }
 
-            // 2. Ajoute automatiquement la ligne du repreneur avec la date de reprise
             addRow("groupes", {
               groupe: info.repreneurNom,
               sirenGroupe: info.repreneurCode,
@@ -1008,11 +1089,14 @@
 
         $("nb").textContent = snap.size;
         $("tbl").innerHTML =
-          `<tr><th>Dénomination</th><th>SIREN</th><th>Établissements</th><th>Groupes (actuels & anciens)</th><th>Ville</th><th>Statut</th><th></th></tr>` +
+          `<tr><th>Dénomination (et anciens noms)</th><th>SIREN</th><th>Établissements</th><th>Groupes (actuels & anciens)</th><th>Ville</th><th>Statut</th><th></th></tr>` +
           snap.docs
             .map((d) => {
               const e = d.data();
               const nbEtabs = 1 + (e.etablissements || []).length;
+              const anciensNoms = (e.historiqueNoms || [])
+                .map((h) => h.ancienNom)
+                .filter(Boolean);
               const grps = (e.groupes || [])
                 .map((g) => {
                   const anc = estAncienStatut(g);
@@ -1021,7 +1105,10 @@
                 .join(", ");
               return `
           <tr>
-            <td><strong>${esc(e.denomination)}</strong></td>
+            <td>
+              <strong>${esc(e.denomination)}</strong>
+              ${anciensNoms.length ? `<div class="muted" style="font-size:12px">Ex-nom : ${anciensNoms.map(esc).join(", ")}</div>` : ""}
+            </td>
             <td>${fmtSiren(e.siren)}</td>
             <td>${nbEtabs} étab.</td>
             <td>${grps || "<span class='muted'>—</span>"}</td>
@@ -1059,14 +1146,20 @@
         $("formTitle").textContent = id
           ? "Modifier l'entreprise"
           : "Nouvelle entreprise";
+        $("btnRename").classList.toggle("hidden", !id);
+
         if (id) {
           const e = (await getDoc(doc(db, "entreprises", id))).data();
+          originalDenomination = (e.denomination || "").trim();
+          originalDateCreation = (e.dateCreation || "").trim();
           $("naf").innerHTML = nafOptions("", e.naf || "");
           FIELDS.forEach((f) => ($(f).value = e[f] ?? ""));
           Object.keys(SECTIONS).forEach((s) =>
             (e[s] || []).forEach((v) => addRow(s, { ...v })),
           );
         } else {
+          originalDenomination = "";
+          originalDateCreation = "";
           const nouveauSiren = String(
             Math.floor(Math.random() * 900000000) + 100000000,
           );
@@ -1104,6 +1197,45 @@
                 : $(f).value.trim()),
         );
         Object.keys(SECTIONS).forEach((s) => (data[s] = collect(s)));
+
+        // Si l'utilisateur a modifié directement le champ "Dénomination" d'une entreprise existante sans cliquer sur "✏️ Renommer",
+        // on archive automatiquement l'ancien nom dans l'historique et dans les annonces !
+        if (
+          editingId &&
+          originalDenomination &&
+          data.denomination &&
+          data.denomination !== originalDenomination
+        ) {
+          const dejaArchive = (data.historiqueNoms || []).some(
+            (h) => norm(h.ancienNom) === norm(originalDenomination),
+          );
+          if (!dejaArchive) {
+            const today = new Date().toISOString().slice(0, 10);
+            const dateChg =
+              prompt(
+                `Vous avez changé le nom de « ${originalDenomination} » en « ${data.denomination} ».\nÀ quelle date ce changement de nom a-t-il eu lieu ?`,
+                today,
+              ) || today;
+            const prevDate =
+              data.historiqueNoms.length > 0
+                ? data.historiqueNoms[data.historiqueNoms.length - 1]
+                    .dateChangement || ""
+                : data.dateCreation || originalDateCreation || "";
+
+            data.historiqueNoms.push({
+              ancienNom: originalDenomination,
+              dateDebut: prevDate,
+              dateChangement: dateChg.trim(),
+              motif: "Changement de dénomination sociale",
+            });
+            data.annonces.push({
+              date: dateChg.trim(),
+              type: "Modification de dénomination",
+              texte: `Ancienne dénomination : « ${originalDenomination} » — Nouvelle dénomination : « ${data.denomination} ».`,
+            });
+          }
+        }
+
         try {
           if (editingId) await setDoc(doc(db, "entreprises", editingId), data);
           else await addDoc(collection(db, "entreprises"), data);
