@@ -14,7 +14,7 @@
   </head>
   <body>
     <div class="notice">
-      Site pédagogique : toutes les entreprises présentées sont fictives.
+      Site pédagogique : toutes les entreprises présentés sont fictives.
     </div>
     <header class="top">
       <a class="brand" href="index.html"
@@ -28,13 +28,13 @@
       <h1>Trouvez toutes les entreprises fictives</h1>
       <p>
         Recherchez une entreprise ou un établissement par son nom (actuel ou
-        ancien), son groupe, son enseigne, son adresse ou son numéro SIREN/SIRET
-        et consultez sa fiche.
+        ancien), son actionnaire (groupe, État, salariés), son enseigne, son
+        adresse ou son numéro SIREN/SIRET et consultez sa fiche.
       </p>
       <form id="search" class="hero-search">
         <input
           id="q"
-          placeholder="Nom, ancien nom, groupe, enseigne, adresse, n° SIRET/SIREN…"
+          placeholder="Nom, ancien nom, groupe, État, salariés, enseigne, SIRET/SIREN…"
           autocomplete="off"
         />
         <button>Rechercher</button>
@@ -76,8 +76,16 @@
           ].filter(Boolean),
         ),
       ];
-      const anciensNomsDe = (e) =>
-        (e.historiqueNoms || []).map((h) => h.ancienNom).filter(Boolean);
+      const anciensNomsDe = (e) => [
+        ...new Set(
+          [
+            ...(e.historiqueNoms || []).map((h) => h.ancienNom),
+            ...(e.etablissements || []).flatMap((et) =>
+              (et.historiqueNoms || []).map((h) => h.ancienNom),
+            ),
+          ].filter(Boolean),
+        ),
+      ];
       const nafsDe = (e) =>
         [
           e.naf,
@@ -101,6 +109,14 @@
         if (/^reprise|^rachat/i.test(t)) return false;
         return /^ancien|cédé|cede/i.test(t);
       };
+      const estEtat = (g) =>
+        /etat|état|publique|collectivit|ape|cdc|bpifrance/i.test(
+          `${g.groupe || ""} ${g.sirenGroupe || ""} ${g.type || ""}`,
+        );
+      const estSalaries = (g) =>
+        /salari[eé]s?|scop|fcpe/i.test(
+          `${g.groupe || ""} ${g.sirenGroupe || ""} ${g.type || ""}`,
+        );
 
       /* Statistiques */
       const actives = all.filter((e) => e.statut !== "Cessée").length;
@@ -160,7 +176,7 @@
               ...anciensNomsDe(e),
               ...enseignesDe(e),
               ...groupesDe(e).map(
-                (g) => `${g.groupe} ${g.activiteCible || ""}`,
+                (g) => `${g.groupe} ${g.type || ""} ${g.activiteCible || ""}`,
               ),
               e.adresse,
               e.cp,
@@ -199,7 +215,15 @@
           <div>
             <strong>${esc(e.denomination)}</strong>
             <span class="pill ${e.statut === "Cessée" ? "off" : "on"}">${e.statut === "Cessée" ? "Cessée" : "En activité"}</span>
-            ${grps.map((g) => `<span class="pill grp" style="margin-left:4px">${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` · ${g.pourcentage}%` : ""}</span>`).join("")}
+            ${grps
+              .map((g) => {
+                const isEt = estEtat(g);
+                const isSal = estSalaries(g);
+                const cls = isEt ? "etat" : isSal ? "salaries" : "grp";
+                const pref = isEt ? "🏛️ " : isSal ? "👥 " : "";
+                return `<span class="pill ${cls}" style="margin-left:4px">${pref}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` · ${g.pourcentage}%` : ""}</span>`;
+              })
+              .join("")}
             ${ancNoms.length ? `<div class="muted"><em>Ancien nom : ${ancNoms.map(esc).join(", ")}</em></div>` : ""}
             ${e.nomCommercial || ens.length ? `<div class="muted">${[e.nomCommercial, ...ens].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
             <div class="muted">SIREN ${fmtSiren(e.siren)} · ${nbEt} établissement${nbEt > 1 ? "s" : ""}</div>

@@ -734,6 +734,26 @@ legend {
   border-radius: 6px;
   margin-bottom: 10px;
 }
+/* Badges Actionnariat État & Salariés + Sous-boîte d'historique de noms d'établissement */
+.pill.etat {
+  background: #e8edff;
+  color: #000091;
+  border: 1px solid #b8c6ff;
+  text-transform: none;
+}
+.pill.salaries {
+  background: #e0f7fa;
+  color: #006064;
+  border: 1px solid #80deea;
+  text-transform: none;
+}
+.sub-etab-box.hist-box {
+  border-left-color: #d9822b;
+  background: #fffdf8;
+}
+.sub-etab-box.hist-box .sub-title {
+  color: #7a4f01;
+}
 
 /* =========================================================
    RESPONSIVE TABLETTE (max-width: 900px)

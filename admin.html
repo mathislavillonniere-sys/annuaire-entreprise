@@ -62,7 +62,9 @@
 
           <div class="grid">
             <div>
-              <label>Dénomination (nom légal) *</label>
+              <label
+                >Dénomination (nom légal de l'entreprise / filiale) *</label
+              >
               <div style="display: flex; gap: 6px">
                 <input id="denomination" required />
                 <button
@@ -86,8 +88,18 @@
               <label>Sigle</label><input id="sigle" placeholder="Ex. : TF1" />
             </div>
             <div>
-              <label>Enseigne du siège</label
-              ><input id="enseigneSiege" placeholder="Ex. : PÔLE MÉDIA TF1" />
+              <label>Enseigne / Nom de l'établissement siège</label>
+              <div style="display: flex; gap: 6px">
+                <input id="enseigneSiege" placeholder="Ex. : PÔLE MÉDIA TF1" />
+                <button
+                  type="button"
+                  class="btn small reprise-btn hidden"
+                  id="btnRenameSiege"
+                  title="Archiver l'enseigne actuelle du siège dans l'historique"
+                >
+                  ✏️ Renommer
+                </button>
+              </div>
             </div>
             <div>
               <label>SIREN (9 chiffres) *</label>
@@ -121,6 +133,12 @@
                 <option>SA, société anonyme</option>
                 <option>EURL</option>
                 <option>SASU</option>
+                <option>SCOP, société coopérative et participative</option>
+                <option>
+                  EPIC, établissement public à caractère industriel et
+                  commercial
+                </option>
+                <option>Société d'économie mixte (SEM)</option>
                 <option>Entrepreneur individuel</option>
                 <option>Association loi 1901</option>
               </select>
@@ -198,7 +216,7 @@
             <div><label>Ville</label><input id="ville" /></div>
           </div>
 
-          <!-- Datalists pour faciliter le rattachement aux groupes / établissements propriétaires -->
+          <!-- Datalists pour faciliter le rattachement aux groupes / État / Salariés / établissements propriétaires -->
           <datalist id="dl-entites"></datalist>
           <datalist id="dl-activites"></datalist>
 
@@ -260,6 +278,10 @@
       const TYPES_RATTACHEMENT = [
         "Filiale / Contrôle majoritaire",
         "Détention à 100 %",
+        "Participation publique (État / Collectivité)",
+        "Actionnariat salarié (Salariés / FCPE / SCOP)",
+        "Actionnaires individuels / Flottant (Bourse)",
+        "Fondateurs & Dirigeants",
         "Reprise / Rachat suite à faillite",
         "Reprise / Rachat d'entreprise ou d'établissement",
         "Détenue par un établissement du groupe",
@@ -267,6 +289,53 @@
         "Participation minoritaire",
         "Ancien groupe (Faillite / Liquidation)",
         "Ancien propriétaire (Cédé / Repris)",
+      ];
+
+      /* Actionnaires spéciaux toujours proposés dans la liste déroulante */
+      const SPECIAL_SHAREHOLDERS = [
+        {
+          label: "État français (Agence des participations de l'État - APE)",
+          code: "ETAT-APE",
+          desc: "Actionnaire public · État français",
+          defaultType: "Participation publique (État / Collectivité)",
+        },
+        {
+          label: "Caisse des Dépôts et Consignations (Bpifrance / État)",
+          code: "ETAT-CDC",
+          desc: "Institution financière publique",
+          defaultType: "Participation publique (État / Collectivité)",
+        },
+        {
+          label: "Région / Collectivité territoriale",
+          code: "COLLECTIVITE",
+          desc: "Actionnaire public local",
+          defaultType: "Participation publique (État / Collectivité)",
+        },
+        {
+          label: "Salariés de l'entreprise (Actionnariat salarié / FCPE)",
+          code: "SALARIES",
+          desc: "Salariés actionnaires de l'entreprise ou de l'établissement",
+          defaultType: "Actionnariat salarié (Salariés / FCPE / SCOP)",
+        },
+        {
+          label:
+            "Salariés-associés (Coopérative SCOP / Reprise par les salariés)",
+          code: "SALARIES-SCOP",
+          desc: "Détention collective par les salariés",
+          defaultType: "Actionnariat salarié (Salariés / FCPE / SCOP)",
+        },
+        {
+          label: "Public / Flottant en Bourse (Actionnaires individuels)",
+          code: "FLOTTANT",
+          desc: "Marché boursier & petits porteurs",
+          defaultType: "Actionnaires individuels / Flottant (Bourse)",
+        },
+        {
+          label: "Fondateurs & Dirigeants",
+          code: "FONDATEURS",
+          desc: "Actionnariat familial ou dirigeant",
+          defaultType: "Fondateurs & Dirigeants",
+        },
       ];
 
       const estAncienStatut = (g) => {
@@ -318,7 +387,7 @@
       const SECTIONS = {
         historiqueNoms: {
           title:
-            "Historique des dénominations & anciens noms de l'entreprise (conservé sur la fiche)",
+            "Historique des dénominations & anciens noms de l'entreprise ou du siège (conservé sur la fiche)",
           cols: [
             ["ancienNom", "Ancienne dénomination / Ancien nom"],
             [
@@ -329,7 +398,7 @@
             ["dateChangement", "Jusqu'au (date du changement de nom)", "date"],
             [
               "motif",
-              "Nature / Motif (ex. Changement de dénomination sociale, Rebranding…)",
+              "Nature / Motif (ex. Changement de dénomination sociale, Rebranding, Ancienne enseigne du siège…)",
             ],
           ],
         },
@@ -342,15 +411,15 @@
         },
         groupes: {
           title:
-            "Rattachement de l'entreprise (ou d'une activité) à un Groupe / Repreneur (actuel et historique)",
+            "Actionnariat & Rattachement de l'entreprise (Groupe, État, Salariés, Repreneur — actuel et historique)",
           cols: [
             [
               "groupe",
-              "Nom du Groupe, Repreneur ou Établissement propriétaire",
+              "Actionnaire (Groupe, État français, Salariés, Établissement propriétaire…)",
             ],
             [
               "sirenGroupe",
-              "SIREN (9 ch.) ou SIRET de l'établissement propriétaire (14 ch.)",
+              "SIREN (9 ch.), SIRET (14 ch.) ou code (ETAT-APE, SALARIES…)",
             ],
             [
               "activiteCible",
@@ -359,7 +428,7 @@
             ["pourcentage", "Détention (%)", "number"],
             [
               "type",
-              "Nature / Statut du rattachement",
+              "Nature / Statut de l'actionnariat",
               "select",
               TYPES_RATTACHEMENT,
             ],
@@ -367,7 +436,7 @@
             ["dateFin", "Jusqu'au (si cédé / faillite)", "date"],
             [
               "commentaire",
-              "Mention / Historique (ex. Repris suite faillite X)",
+              "Mention / Historique (ex. Repris suite faillite X, Actionnariat salarié…)",
             ],
           ],
         },
@@ -375,13 +444,16 @@
           title: "Dirigeants",
           cols: [
             ["nom", "Nom / Dénomination"],
-            ["role", "Qualité (Président…)"],
+            [
+              "role",
+              "Qualité (Président, Représentant de l'État, Administrateur salarié…)",
+            ],
             ["naissance", "Naissance (ex. mars 1985)"],
           ],
         },
         etablissements: {
           title:
-            "Autres établissements (chaque établissement a sa propre fiche, ses NAF secondaires et son historique de groupes/repreneurs)",
+            "Autres établissements (chacun a sa propre fiche, ses NAF secondaires, ses anciens noms et ses actionnaires/groupes)",
           cols: [
             ["nic", "NIC (5 chiffres) — généré auto"],
             ["naf", "Code NAF principal de l'établissement", "select", "NAF"],
@@ -436,10 +508,12 @@
 
       let editingId = null;
       let originalDenomination = "";
+      let originalEnseigneSiege = "";
       let originalDateCreation = "";
+      let originalEtabNames = {}; // nic -> ancien nom d'enseigne avant édition
       let knownEntities = [];
 
-      /* ---------- Assistant de changement de nom d'une entreprise ---------- */
+      /* ---------- 1. Assistant de changement de nom de l'entreprise (ou filiale) ---------- */
       $("btnRename").addEventListener("click", () => {
         const currentNom =
           $("denomination").value.trim() || originalDenomination;
@@ -468,14 +542,12 @@
             "Changement de dénomination sociale",
           ) || "Changement de dénomination sociale";
 
-        // Cherche la date de début de ce nom (soit la fin du précédent changement de nom, soit la date de création)
         const existingHist = collect("historiqueNoms");
         const lastChangeDate =
           existingHist.length > 0
             ? existingHist[existingHist.length - 1].dateChangement || ""
             : $("dateCreation").value || originalDateCreation || "";
 
-        // 1. Ajoute l'ancien nom dans la section Historique des dénominations
         addRow("historiqueNoms", {
           ancienNom: currentNom,
           dateDebut: lastChangeDate,
@@ -483,16 +555,58 @@
           motif: motif.trim(),
         });
 
-        // 2. Ajoute automatiquement une trace dans les Annonces et observations
         addRow("annonces", {
           date: dateChg.trim(),
           type: "Modification de dénomination",
           texte: `Ancienne dénomination : « ${currentNom} » — Nouvelle dénomination : « ${nouveauNom.trim()} » (${motif.trim()}).`,
         });
 
-        // 3. Met à jour le champ dénomination et mémorise pour éviter un doublon à l'enregistrement
         $("denomination").value = nouveauNom.trim();
         originalDenomination = nouveauNom.trim();
+      });
+
+      /* ---------- 2. Assistant de changement de nom de l'enseigne du siège ---------- */
+      $("btnRenameSiege").addEventListener("click", () => {
+        const currentEns =
+          $("enseigneSiege").value.trim() || originalEnseigneSiege;
+        if (!currentEns) {
+          alert(
+            "Renseigne d'abord une enseigne du siège avant de la renommer.",
+          );
+          return;
+        }
+        const nouvelleEns = prompt(
+          `Nouveau nom / nouvelle enseigne pour l'établissement siège (remplace « ${currentEns} ») :`,
+        );
+        if (
+          !nouvelleEns ||
+          !nouvelleEns.trim() ||
+          nouvelleEns.trim() === currentEns
+        )
+          return;
+
+        const today = new Date().toISOString().slice(0, 10);
+        const dateChg = prompt(
+          `Date du changement d'enseigne du siège (passage de « ${currentEns} » à « ${nouvelleEns.trim()} ») :`,
+          today,
+        );
+        if (!dateChg) return;
+
+        addRow("historiqueNoms", {
+          ancienNom: currentEns,
+          dateDebut: $("dateCreation").value || originalDateCreation || "",
+          dateChangement: dateChg.trim(),
+          motif: "Ancienne enseigne de l'établissement siège",
+        });
+
+        addRow("annonces", {
+          date: dateChg.trim(),
+          type: "Changement d'enseigne (Siège)",
+          texte: `L'établissement siège « ${currentEns} » change d'enseigne pour devenir « ${nouvelleEns.trim()} ».`,
+        });
+
+        $("enseigneSiege").value = nouvelleEns.trim();
+        originalEnseigneSiege = nouvelleEns.trim();
       });
 
       /* ---------- Assistant de reprise suite à faillite / cession ---------- */
@@ -505,7 +619,7 @@
         if (!dateReprise) return null;
 
         const repreneurNom = prompt(
-          "Nom du nouveau groupe ou établissement repreneur :",
+          "Nom du repreneur (Groupe, Établissement, Salariés de l'entreprise, État français…) :",
         );
         if (!repreneurNom || !repreneurNom.trim()) return null;
 
@@ -513,7 +627,7 @@
           (x) => norm(x.label) === norm(repreneurNom.trim()),
         );
         const repreneurCode = prompt(
-          "SIREN (9 chiffres) ou SIRET (14 chiffres) du repreneur :",
+          "SIREN (9 ch.), SIRET (14 ch.) ou code (SALARIES, ETAT-APE…) du repreneur :",
           match ? match.code : "",
         );
         const pct = prompt(
@@ -620,18 +734,55 @@
       /* ---------- Sections répétables ---------- */
       function buildSections() {
         $("sections").innerHTML = Object.entries(SECTIONS)
-          .map(
-            ([k, s]) => `
+          .map(([k, s]) => {
+            const quickBtns =
+              k === "groupes"
+                ? `<button type="button" class="btn sec small add-etat" style="margin-left:6px">🏛️ + Actionnaire État</button>
+                   <button type="button" class="btn sec small add-salaries" style="margin-left:6px">👥 + Actionnariat Salariés</button>`
+                : "";
+            return `
         <fieldset data-sec="${k}"><legend>${s.title}</legend>
           <div class="rows"></div>
-          <button type="button" class="btn sec small add">+ Ajouter</button>
-        </fieldset>`,
-          )
+          <div class="actions" style="margin-top:6px">
+            <button type="button" class="btn sec small add">+ Ajouter</button>
+            ${quickBtns}
+          </div>
+        </fieldset>`;
+          })
           .join("");
+
         document.querySelectorAll("fieldset[data-sec]").forEach((fs) => {
           fs.querySelector(".add").addEventListener("click", () =>
             addRow(fs.dataset.sec),
           );
+          const btnEtat = fs.querySelector(".add-etat");
+          if (btnEtat) {
+            btnEtat.addEventListener("click", () =>
+              addRow("groupes", {
+                groupe:
+                  "État français (Agence des participations de l'État - APE)",
+                sirenGroupe: "ETAT-APE",
+                activiteCible: "Toute l'entreprise (Unité légale)",
+                pourcentage: 100,
+                type: "Participation publique (État / Collectivité)",
+                dateDebut: $("dateCreation").value || "",
+              }),
+            );
+          }
+          const btnSal = fs.querySelector(".add-salaries");
+          if (btnSal) {
+            btnSal.addEventListener("click", () =>
+              addRow("groupes", {
+                groupe:
+                  "Salariés de l'entreprise (Actionnariat salarié / FCPE)",
+                sirenGroupe: "SALARIES",
+                activiteCible: "Toute l'entreprise (Unité légale)",
+                pourcentage: 10,
+                type: "Actionnariat salarié (Salariés / FCPE / SCOP)",
+                dateDebut: $("dateCreation").value || "",
+              }),
+            );
+          }
         });
       }
 
@@ -672,17 +823,46 @@
         container.appendChild(sr);
       }
 
-      /* Sous-ligne 2 : Rattachement d'un établissement à un Groupe / Repreneur (avec historique complet) */
+      /* Sous-ligne 2 : Historique des anciens noms / enseignes propre à un établissement */
+      function addEtabSubHistNom(container, subNom = {}) {
+        const sr = document.createElement("div");
+        sr.className = "sub-row sub-hist-nom-row";
+        sr.innerHTML = `
+          <div>
+            <label>Ancien nom / Ancienne enseigne de l'établissement</label>
+            <input data-subnk="ancienNom" type="text" value="${esc(subNom.ancienNom || "")}" placeholder="Ex. Ancien nom de la chaîne ou du magasin" />
+          </div>
+          <div>
+            <label>Utilisé du</label>
+            <input data-subnk="dateDebut" type="date" value="${esc(subNom.dateDebut || "")}" />
+          </div>
+          <div>
+            <label>Jusqu'au (date du changement)</label>
+            <input data-subnk="dateChangement" type="date" value="${esc(subNom.dateChangement || "")}" />
+          </div>
+          <div>
+            <label>Motif / Mention</label>
+            <input data-subnk="motif" type="text" value="${esc(subNom.motif || "")}" placeholder="Ex. Rebranding, rachat, changement d'enseigne…" />
+          </div>
+          <button type="button" class="btn danger small rm-sub">✕</button>
+        `;
+        sr.querySelector(".rm-sub").addEventListener("click", () =>
+          sr.remove(),
+        );
+        container.appendChild(sr);
+      }
+
+      /* Sous-ligne 3 : Rattachement d'un établissement à un Groupe / Repreneur / État / Salariés */
       function addEtabSubGroupe(container, subGrp = {}) {
         const sr = document.createElement("div");
         sr.className = "sub-row sub-grp-row";
         sr.innerHTML = `
           <div>
-            <label>Groupe / Repreneur / Étab. propriétaire</label>
-            <input data-subgk="groupe" list="dl-entites" type="text" value="${esc(subGrp.groupe || "")}" placeholder="Nom du groupe ou repreneur" />
+            <label>Actionnaire (Groupe, État, Salariés, Repreneur…)</label>
+            <input data-subgk="groupe" list="dl-entites" type="text" value="${esc(subGrp.groupe || "")}" placeholder="Groupe, État français, Salariés…" />
           </div>
           <div>
-            <label>SIREN ou SIRET propriétaire</label>
+            <label>SIREN, SIRET ou Code</label>
             <input data-subgk="sirenGroupe" type="text" value="${esc(subGrp.sirenGroupe || "")}" placeholder="Auto ou facultatif" />
           </div>
           <div>
@@ -727,14 +907,21 @@
         const inpGrp = sr.querySelector('[data-subgk="groupe"]');
         const inpCode = sr.querySelector('[data-subgk="sirenGroupe"]');
         inpGrp.addEventListener("input", () => {
-          const match = knownEntities.find(
-            (x) => norm(x.label) === norm(inpGrp.value.trim()),
-          );
+          const val = inpGrp.value.trim();
+          const match = knownEntities.find((x) => norm(x.label) === norm(val));
           if (match) {
             if (!inpCode.value) inpCode.value = match.code || "";
-            if (match.isEtab && !selType.value) {
+            if (match.defaultType && !selType.value) {
+              selType.value = match.defaultType;
+            } else if (match.isEtab && !selType.value) {
               selType.value = "Détenue par un établissement du groupe";
             }
+          } else if (/^etat\b|^état\b/i.test(val) && !selType.value) {
+            selType.value = "Participation publique (État / Collectivité)";
+            if (!inpCode.value) inpCode.value = "ETAT-APE";
+          } else if (/salari[eé]s?|scop|fcpe/i.test(val) && !selType.value) {
+            selType.value = "Actionnariat salarié (Salariés / FCPE / SCOP)";
+            if (!inpCode.value) inpCode.value = "SALARIES";
           }
         });
 
@@ -806,6 +993,9 @@
               }
               if (sec === "etablissements" && k === "nic") {
                 return `<div><label>${label}</label><div style="display:flex;gap:6px"><input data-k="nic" type="text" maxlength="5" pattern="\\d{5}" value="${esc(values[k])}"><button type="button" class="btn sec small regen-etab-nic" title="Générer un autre NIC">🔄</button></div></div>`;
+              }
+              if (sec === "etablissements" && k === "enseigne") {
+                return `<div><label>${label}</label><div style="display:flex;gap:6px"><input data-k="enseigne" type="text" value="${esc(values[k])}" placeholder="Nom de l'établissement / chaîne / enseigne"><button type="button" class="btn small reprise-btn rename-etab-btn" title="Changer le nom de cet établissement et archiver l'ancien nom dans son historique">✏️ Renommer</button></div></div>`;
               }
               return `<div><label>${label}</label><input data-k="${k}" type="${type || "text"}" ${
                 k === "pourcentage" ? 'min="0" max="100" step="0.01"' : ""
@@ -888,8 +1078,98 @@
           });
         }
 
-        // Sous-blocs propres à chaque établissement : (1) NAF secondaires + (2) Groupes / Repreneurs de l'établissement
+        // Sous-blocs propres à chaque établissement : (1) Historique des noms + (2) NAF secondaires + (3) Groupes / Actionnaires
         if (sec === "etablissements") {
+          // 1. Sous-bloc Historique des anciens noms / enseignes de cet établissement
+          const subBoxHist = document.createElement("div");
+          subBoxHist.className = "sub-etab-box hist-box";
+          subBoxHist.innerHTML = `
+            <span class="sub-title">Historique des anciens noms / enseignes de cet établissement</span>
+            <div class="sub-hist-nom-rows"></div>
+            <button type="button" class="btn sec small add-sub-hist-nom">+ Ajouter un ancien nom à cet établissement</button>
+          `;
+          const subHistContainer =
+            subBoxHist.querySelector(".sub-hist-nom-rows");
+          subBoxHist
+            .querySelector(".add-sub-hist-nom")
+            .addEventListener("click", () =>
+              addEtabSubHistNom(subHistContainer),
+            );
+          (values.historiqueNoms || []).forEach((sn) =>
+            addEtabSubHistNom(subHistContainer, sn),
+          );
+          row.appendChild(subBoxHist);
+
+          // Bouton rapide "✏️ Renommer" sur l'enseigne de l'établissement
+          const btnRenameEtab = row.querySelector(".rename-etab-btn");
+          const inpEnsEtab = row.querySelector('input[data-k="enseigne"]');
+          const inpNicEtab = row.querySelector('input[data-k="nic"]');
+          const inpDateCreaEtab = row.querySelector(
+            'input[data-k="dateCreation"]',
+          );
+          if (btnRenameEtab && inpEnsEtab) {
+            btnRenameEtab.addEventListener("click", () => {
+              const nicKey = inpNicEtab.value.trim();
+              const currentEns =
+                inpEnsEtab.value.trim() || originalEtabNames[nicKey] || "";
+              if (!currentEns) {
+                alert(
+                  "Renseigne d'abord le nom / l'enseigne actuelle de l'établissement avant de le renommer.",
+                );
+                return;
+              }
+              const nouveauNom = prompt(
+                `Nouveau nom / nouvelle enseigne de l'établissement (remplace « ${currentEns} ») :`,
+              );
+              if (
+                !nouveauNom ||
+                !nouveauNom.trim() ||
+                nouveauNom.trim() === currentEns
+              )
+                return;
+
+              const today = new Date().toISOString().slice(0, 10);
+              const dateChg = prompt(
+                `Date du changement de nom de l'établissement (passage de « ${currentEns} » à « ${nouveauNom.trim()} ») :`,
+                today,
+              );
+              if (!dateChg) return;
+
+              const motif =
+                prompt(
+                  "Motif du changement de nom (ex. Changement d'enseigne, Rebranding suite rachat…) :",
+                  "Changement d'enseigne / Rebranding",
+                ) || "Changement d'enseigne";
+
+              const prevHistRows = [
+                ...subHistContainer.querySelectorAll(".sub-hist-nom-row"),
+              ];
+              const lastDate =
+                prevHistRows.length > 0
+                  ? prevHistRows[prevHistRows.length - 1].querySelector(
+                      '[data-subnk="dateChangement"]',
+                    ).value || ""
+                  : inpDateCreaEtab.value || $("dateCreation").value || "";
+
+              addEtabSubHistNom(subHistContainer, {
+                ancienNom: currentEns,
+                dateDebut: lastDate,
+                dateChangement: dateChg.trim(),
+                motif: motif.trim(),
+              });
+
+              addRow("annonces", {
+                date: dateChg.trim(),
+                type: "Changement de nom d'établissement",
+                texte: `L'établissement « ${currentEns} » (NIC ${nicKey}) change de nom pour devenir « ${nouveauNom.trim()} » (${motif.trim()}).`,
+              });
+
+              inpEnsEtab.value = nouveauNom.trim();
+              if (nicKey) originalEtabNames[nicKey] = nouveauNom.trim();
+            });
+          }
+
+          // 2. Sous-bloc Activités NAF secondaires
           const subBoxNaf = document.createElement("div");
           subBoxNaf.className = "sub-etab-box";
           subBoxNaf.innerHTML = `
@@ -906,24 +1186,54 @@
           );
           row.appendChild(subBoxNaf);
 
+          // 3. Sous-bloc Rattachement Groupes / État / Salariés / Repreneurs
           const subBoxGrp = document.createElement("div");
           subBoxGrp.className = "sub-etab-box grp-box";
           subBoxGrp.innerHTML = `
-            <span class="sub-title">Rattachement de cet établissement à un ou plusieurs groupes / repreneurs (historique conservé)</span>
+            <span class="sub-title">Actionnariat & Rattachement de cet établissement (Groupe, État, Salariés, Repreneur — historique conservé)</span>
             <div class="sub-grp-rows"></div>
-            <button type="button" class="btn sec small add-sub-grp">+ Rattacher cet établissement à un groupe / repreneur</button>
+            <div class="actions" style="margin-top:6px">
+              <button type="button" class="btn sec small add-sub-grp">+ Rattacher à un groupe / repreneur</button>
+              <button type="button" class="btn sec small add-sub-etat">🏛️ + État</button>
+              <button type="button" class="btn sec small add-sub-sal">👥 + Salariés</button>
+            </div>
           `;
           const subGrpContainer = subBoxGrp.querySelector(".sub-grp-rows");
           subBoxGrp
             .querySelector(".add-sub-grp")
             .addEventListener("click", () => addEtabSubGroupe(subGrpContainer));
+          subBoxGrp
+            .querySelector(".add-sub-etat")
+            .addEventListener("click", () =>
+              addEtabSubGroupe(subGrpContainer, {
+                groupe:
+                  "État français (Agence des participations de l'État - APE)",
+                sirenGroupe: "ETAT-APE",
+                pourcentage: 100,
+                type: "Participation publique (État / Collectivité)",
+                dateDebut:
+                  inpDateCreaEtab.value || $("dateCreation").value || "",
+              }),
+            );
+          subBoxGrp
+            .querySelector(".add-sub-sal")
+            .addEventListener("click", () =>
+              addEtabSubGroupe(subGrpContainer, {
+                groupe: "Salariés de l'établissement (Actionnariat salarié)",
+                sirenGroupe: "SALARIES",
+                pourcentage: 10,
+                type: "Actionnariat salarié (Salariés / FCPE / SCOP)",
+                dateDebut:
+                  inpDateCreaEtab.value || $("dateCreation").value || "",
+              }),
+            );
           (values.groupes || []).forEach((sg) =>
             addEtabSubGroupe(subGrpContainer, sg),
           );
           row.appendChild(subBoxGrp);
         }
 
-        // Autocomplétion + Bouton de reprise pour la section Groupes de l'entreprise
+        // Autocomplétion + Bouton de reprise pour la section Groupes / Actionnaires de l'entreprise
         if (sec === "groupes") {
           const inpGrp = row.querySelector('input[data-k="groupe"]');
           const inpCode = row.querySelector('input[data-k="sirenGroupe"]');
@@ -932,14 +1242,23 @@
           inpGrp.setAttribute("list", "dl-entites");
           inpAct.setAttribute("list", "dl-activites");
           inpGrp.addEventListener("input", () => {
+            const val = inpGrp.value.trim();
             const match = knownEntities.find(
-              (x) => norm(x.label) === norm(inpGrp.value.trim()),
+              (x) => norm(x.label) === norm(val),
             );
             if (match) {
               if (!inpCode.value) inpCode.value = match.code || "";
-              if (match.isEtab && !selType.value) {
+              if (match.defaultType && !selType.value) {
+                selType.value = match.defaultType;
+              } else if (match.isEtab && !selType.value) {
                 selType.value = "Détenue par un établissement du groupe";
               }
+            } else if (/^etat\b|^état\b/i.test(val) && !selType.value) {
+              selType.value = "Participation publique (État / Collectivité)";
+              if (!inpCode.value) inpCode.value = "ETAT-APE";
+            } else if (/salari[eé]s?|scop|fcpe/i.test(val) && !selType.value) {
+              selType.value = "Actionnariat salarié (Salariés / FCPE / SCOP)";
+              if (!inpCode.value) inpCode.value = "SALARIES";
             }
           });
 
@@ -998,6 +1317,21 @@
                     : i.value.trim()),
             );
             if (sec === "etablissements") {
+              o.historiqueNoms = [...r.querySelectorAll(".sub-hist-nom-row")]
+                .map((sr) => ({
+                  ancienNom: sr
+                    .querySelector('[data-subnk="ancienNom"]')
+                    .value.trim(),
+                  dateDebut: sr
+                    .querySelector('[data-subnk="dateDebut"]')
+                    .value.trim(),
+                  dateChangement: sr
+                    .querySelector('[data-subnk="dateChangement"]')
+                    .value.trim(),
+                  motif: sr.querySelector('[data-subnk="motif"]').value.trim(),
+                }))
+                .filter((x) => x.ancienNom);
+
               o.nafSecondaires = [...r.querySelectorAll(".sub-naf-row")]
                 .map((sr) => ({
                   naf: sr.querySelector('[data-subk="naf"]').value.trim(),
@@ -1051,7 +1385,7 @@
         const snap = await getDocs(
           query(collection(db, "entreprises"), orderBy("denomination")),
         );
-        knownEntities = [];
+        knownEntities = [...SPECIAL_SHAREHOLDERS];
         snap.docs.forEach((d) => {
           const e = d.data();
           knownEntities.push({
@@ -1089,7 +1423,7 @@
 
         $("nb").textContent = snap.size;
         $("tbl").innerHTML =
-          `<tr><th>Dénomination (et anciens noms)</th><th>SIREN</th><th>Établissements</th><th>Groupes (actuels & anciens)</th><th>Ville</th><th>Statut</th><th></th></tr>` +
+          `<tr><th>Dénomination (et anciens noms)</th><th>SIREN</th><th>Établissements</th><th>Actionnaires & Groupes</th><th>Ville</th><th>Statut</th><th></th></tr>` +
           snap.docs
             .map((d) => {
               const e = d.data();
@@ -1137,6 +1471,7 @@
       /* ---------- Formulaire ---------- */
       async function openForm(id = null) {
         editingId = id;
+        originalEtabNames = {};
         $("form").classList.remove("hidden");
         $("form").reset();
         $("nafFilter").value = "";
@@ -1147,11 +1482,18 @@
           ? "Modifier l'entreprise"
           : "Nouvelle entreprise";
         $("btnRename").classList.toggle("hidden", !id);
+        $("btnRenameSiege").classList.toggle("hidden", !id);
 
         if (id) {
           const e = (await getDoc(doc(db, "entreprises", id))).data();
           originalDenomination = (e.denomination || "").trim();
+          originalEnseigneSiege = (e.enseigneSiege || "").trim();
           originalDateCreation = (e.dateCreation || "").trim();
+          (e.etablissements || []).forEach((et) => {
+            if (et.nic && et.enseigne) {
+              originalEtabNames[et.nic] = et.enseigne.trim();
+            }
+          });
           $("naf").innerHTML = nafOptions("", e.naf || "");
           FIELDS.forEach((f) => ($(f).value = e[f] ?? ""));
           Object.keys(SECTIONS).forEach((s) =>
@@ -1159,6 +1501,7 @@
           );
         } else {
           originalDenomination = "";
+          originalEnseigneSiege = "";
           originalDateCreation = "";
           const nouveauSiren = String(
             Math.floor(Math.random() * 900000000) + 100000000,
@@ -1198,8 +1541,9 @@
         );
         Object.keys(SECTIONS).forEach((s) => (data[s] = collect(s)));
 
-        // Si l'utilisateur a modifié directement le champ "Dénomination" d'une entreprise existante sans cliquer sur "✏️ Renommer",
-        // on archive automatiquement l'ancien nom dans l'historique et dans les annonces !
+        const today = new Date().toISOString().slice(0, 10);
+
+        // 1. Archivage auto si le nom de l'entreprise/filiale a été changé directement dans le champ
         if (
           editingId &&
           originalDenomination &&
@@ -1210,7 +1554,6 @@
             (h) => norm(h.ancienNom) === norm(originalDenomination),
           );
           if (!dejaArchive) {
-            const today = new Date().toISOString().slice(0, 10);
             const dateChg =
               prompt(
                 `Vous avez changé le nom de « ${originalDenomination} » en « ${data.denomination} ».\nÀ quelle date ce changement de nom a-t-il eu lieu ?`,
@@ -1234,6 +1577,62 @@
               texte: `Ancienne dénomination : « ${originalDenomination} » — Nouvelle dénomination : « ${data.denomination} ».`,
             });
           }
+        }
+
+        // 2. Archivage auto si l'enseigne du siège a été modifiée directement
+        if (
+          editingId &&
+          originalEnseigneSiege &&
+          data.enseigneSiege &&
+          data.enseigneSiege !== originalEnseigneSiege
+        ) {
+          const dejaArchive = (data.historiqueNoms || []).some(
+            (h) => norm(h.ancienNom) === norm(originalEnseigneSiege),
+          );
+          if (!dejaArchive) {
+            const dateChg =
+              prompt(
+                `Vous avez changé l'enseigne du siège de « ${originalEnseigneSiege} » en « ${data.enseigneSiege} ».\nDate du changement :`,
+                today,
+              ) || today;
+            data.historiqueNoms.push({
+              ancienNom: originalEnseigneSiege,
+              dateDebut: data.dateCreation || originalDateCreation || "",
+              dateChangement: dateChg.trim(),
+              motif: "Ancienne enseigne de l'établissement siège",
+            });
+          }
+        }
+
+        // 3. Archivage auto si le nom (enseigne) d'un établissement secondaire a été modifié directement
+        if (editingId) {
+          (data.etablissements || []).forEach((et) => {
+            const oldEns = originalEtabNames[et.nic];
+            if (oldEns && et.enseigne && et.enseigne !== oldEns) {
+              et.historiqueNoms = et.historiqueNoms || [];
+              const deja = et.historiqueNoms.some(
+                (h) => norm(h.ancienNom) === norm(oldEns),
+              );
+              if (!deja) {
+                const dateChg =
+                  prompt(
+                    `Vous avez changé le nom de l'établissement « ${oldEns} » en « ${et.enseigne} ».\nÀ quelle date ce changement a-t-il eu lieu ?`,
+                    today,
+                  ) || today;
+                et.historiqueNoms.push({
+                  ancienNom: oldEns,
+                  dateDebut: et.dateCreation || data.dateCreation || "",
+                  dateChangement: dateChg.trim(),
+                  motif: "Changement d'enseigne / de nom d'établissement",
+                });
+                data.annonces.push({
+                  date: dateChg.trim(),
+                  type: "Changement de nom d'établissement",
+                  texte: `L'établissement « ${oldEns} » (NIC ${et.nic}) devient « ${et.enseigne} ».`,
+                });
+              }
+            }
+          });
         }
 
         try {

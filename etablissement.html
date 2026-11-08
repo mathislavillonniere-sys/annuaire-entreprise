@@ -77,6 +77,12 @@
               naf: e.naf,
               activite: e.activite || nafLabel(e.naf),
               nafSecondaires: e.nafSecondaires || [],
+              historiqueNoms: (e.historiqueNoms || []).filter(
+                (h) =>
+                  h.ancienNom &&
+                  (/siège|siege|enseigne/i.test(h.motif || "") ||
+                    !e.enseigneSiege),
+              ),
               groupes: e.groupes || [],
               enseigne: e.enseigneSiege || "",
               adresse:
@@ -95,7 +101,7 @@
         if (!rawEtab) {
           app.innerHTML = `<h1>Établissement introuvable</h1><p><a href="entreprise.html?id=${esc(e.id)}">← Retour à l'entreprise ${esc(e.denomination)}</a></p>`;
         } else {
-          /* Détection précise : Ancien groupe vs Repreneur vs Filiale normale */
+          /* Détection précise : Ancien groupe, Repreneur, État, Salariés */
           const estAncien = (g) => {
             if (g.dateFin) return true;
             const t = g.type || "";
@@ -106,11 +112,31 @@
             !estAncien(g) &&
             (/reprise|rachat/i.test(g.type || "") ||
               /repris/i.test(g.commentaire || ""));
+          const estEtat = (g) =>
+            /etat|état|publique|collectivit|ape|cdc|bpifrance/i.test(
+              `${g.groupe || ""} ${g.sirenGroupe || ""} ${g.type || ""}`,
+            );
+          const estSalaries = (g) =>
+            /salari[eé]s?|scop|fcpe/i.test(
+              `${g.groupe || ""} ${g.sirenGroupe || ""} ${g.type || ""}`,
+            );
 
           const siret =
             rawEtab.siret || (e.siren || "") + (rawEtab.nic || targetNic);
+          const historiqueNomsEtab = (rawEtab.historiqueNoms || []).filter(
+            (h) => h.ancienNom,
+          );
 
-          /* Groupes rattachés à cet établissement (directement ou via son unité légale) */
+          const fmtPeriodeNom = (h) => {
+            if (h.dateDebut && h.dateChangement)
+              return `Du ${fmtDate(h.dateDebut)} au ${fmtDate(h.dateChangement)}`;
+            if (h.dateChangement)
+              return `Jusqu'au ${fmtDate(h.dateChangement)}`;
+            if (h.dateDebut) return `Depuis le ${fmtDate(h.dateDebut)}`;
+            return "Ancien nom";
+          };
+
+          /* Groupes & Actionnaires rattachés à cet établissement (directement ou via son unité légale) */
           const groupesEtab = [
             ...(rawEtab.groupes || []).map((g) => ({
               ...g,
@@ -130,9 +156,7 @@
 
           const groupesActuels = groupesEtab.filter((g) => !estAncien(g));
 
-          // CORRECTION : On n'ajoute l'entreprise d'origine (e.denomination) comme "Ancien groupe" QUE SI :
-          // 1) L'entreprise d'origine est effectivement Cessée/Liquidée (e.statut === "Cessée")
-          // OU 2) L'établissement lui-même a une ligne marquée explicitement "Reprise / Rachat..."
+          // Ajout de l'entreprise d'origine comme "Ancien groupe" uniquement si elle est Cessée/Liquidée ou si l'établissement a été explicitement repris
           const etabExplicitementRepris = (rawEtab.groupes || []).some((g) =>
             estReprise(g),
           );
@@ -212,9 +236,15 @@
               })),
           ];
 
-          /* Fonction de recherche d'une entreprise ou d'un établissement cible */
-          const resolveOwnerLink = (nom, code) => {
+          /* Fonction de recherche d'une entreprise, d'un établissement, de l'État ou des Salariés */
+          const resolveOwnerLink = (nom, code, gObj = {}) => {
             const clean = String(code || "").replace(/\s/g, "");
+            if (estEtat({ groupe: nom, sirenGroupe: code, ...gObj })) {
+              return `🏛️ <strong>${esc(nom || "État français")}</strong> <span class="pill etat" style="font-size:11px;margin-left:4px">Actionnaire public</span>`;
+            }
+            if (estSalaries({ groupe: nom, sirenGroupe: code, ...gObj })) {
+              return `👥 <strong>${esc(nom || "Salariés")}</strong> <span class="pill salaries" style="font-size:11px;margin-left:4px">Actionnariat salarié</span>`;
+            }
             if (clean.length === 14) {
               const ent = allEntreprises.find(
                 (x) => x.siren === clean.slice(0, 9),
@@ -227,7 +257,11 @@
               (x) =>
                 (clean.length === 9 && x.siren === clean) ||
                 (nom && norm(x.denomination) === norm(nom)) ||
-                (nom && norm(x.nomCommercial || "") === norm(nom)),
+                (nom && norm(x.nomCommercial || "") === norm(nom)) ||
+                (nom &&
+                  (x.historiqueNoms || []).some(
+                    (h) => norm(h.ancienNom) === norm(nom),
+                  )),
             );
             if (ent) {
               return `<a href="entreprise.html?id=${esc(ent.id)}"><strong>${esc(nom || ent.denomination)}</strong></a> <span class="muted">(SIREN ${fmtSiren(ent.siren)})</span>`;
@@ -242,15 +276,18 @@
               }
               for (const et of cand.etablissements || []) {
                 if (
-                  et.enseigne &&
-                  nom &&
-                  norm(nom).includes(norm(et.enseigne))
+                  (et.enseigne &&
+                    nom &&
+                    norm(nom).includes(norm(et.enseigne))) ||
+                  (et.historiqueNoms || []).some(
+                    (h) => h.ancienNom && norm(nom).includes(norm(h.ancienNom)),
+                  )
                 ) {
                   return `<a href="etablissement.html?id=${esc(cand.id)}&nic=${esc(et.nic)}"><strong>${esc(nom)}</strong></a>`;
                 }
               }
             }
-            return `<strong>${esc(nom)}</strong>${clean ? ` <span class="muted">(${esc(clean)})</span>` : ""}`;
+            return `<strong>${esc(nom)}</strong>${clean && !/^(ETAT|SALARIES|FLOTTANT|FONDATEURS|COLLECTIVITE)/i.test(clean) ? ` <span class="muted">(${esc(clean)})</span>` : ""}`;
           };
 
           const renderGauge = (pct) => {
@@ -270,20 +307,20 @@
                   ${anciensGroupes
                     .map(
                       (a) =>
-                        `${resolveOwnerLink(a.groupe, a.sirenGroupe)}${a.dateFin && a.dateFin !== "Liquidé" ? ` (le ${fmtDate(a.dateFin)})` : ""}`,
+                        `${resolveOwnerLink(a.groupe, a.sirenGroupe, a)}${a.dateFin && a.dateFin !== "Liquidé" ? ` (le ${fmtDate(a.dateFin)})` : ""}`,
                     )
                     .join(", ")},
                   l'établissement <strong>${esc(rawEtab.enseigne || titreEtab)}</strong> a été repris par
                   ${groupesActuels
                     .map(
                       (g) =>
-                        `${resolveOwnerLink(g.groupe, g.sirenGroupe)}${g.dateDebut ? ` le <strong>${fmtDate(g.dateDebut)}</strong>` : ""}`,
+                        `${resolveOwnerLink(g.groupe, g.sirenGroupe, g)}${g.dateDebut ? ` le <strong>${fmtDate(g.dateDebut)}</strong>` : ""}`,
                     )
                     .join(", ")}.
                 </div>`
               : "";
 
-          /* Entreprises ou autres établissements DÉTENUS (ou anciennement détenus) par CET établissement */
+          /* Entreprises ou autres établissements DÉTENUS par CET établissement (y compris sous un ancien nom) */
           const matchesThisEtab = (g) => {
             const cleanCode = String(g.sirenGroupe || "").replace(/\s/g, "");
             if (cleanCode && cleanCode === siret) return true;
@@ -296,6 +333,14 @@
               ng === norm(`${rawEtab.enseigne} (${e.denomination})`)
             )
               return true;
+            if (
+              historiqueNomsEtab.some(
+                (h) =>
+                  norm(h.ancienNom) === ng ||
+                  norm(`${h.ancienNom} (${e.denomination})`) === ng,
+              )
+            )
+              return true;
             if (ng === norm(`Établissement ${targetNic} — ${e.denomination}`))
               return true;
             if (isSiege && ng === norm(e.denomination)) return true;
@@ -304,7 +349,6 @@
 
           const filialesDetenues = [];
           allEntreprises.forEach((cand) => {
-            // Entreprises détenues par cet établissement
             (cand.groupes || []).forEach((g) => {
               if (cand.id === e.id && isSiege) return;
               if (matchesThisEtab(g)) {
@@ -317,6 +361,9 @@
                   : null;
                 filialesDetenues.push({
                   label: cand.denomination,
+                  anciensNoms: (cand.historiqueNoms || [])
+                    .map((h) => h.ancienNom)
+                    .filter(Boolean),
                   sub: `Unité légale · SIREN ${fmtSiren(cand.siren)}`,
                   href: `entreprise.html?id=${esc(cand.id)}`,
                   cible: g.activiteCible || "Toute l'entreprise",
@@ -332,7 +379,7 @@
                 });
               }
             });
-            // Autres établissements détenus par cet établissement
+
             (cand.etablissements || []).forEach((et) => {
               const etSiret = et.siret || (cand.siren || "") + (et.nic || "");
               if (cand.id === e.id && et.nic === targetNic) return;
@@ -357,6 +404,9 @@
                     label: et.enseigne
                       ? `${et.enseigne} (${cand.denomination})`
                       : `${cand.denomination} — Étab. ${et.nic}`,
+                    anciensNoms: (et.historiqueNoms || [])
+                      .map((h) => h.ancienNom)
+                      .filter(Boolean),
                     sub: `Établissement · SIRET ${fmtSiret(etSiret)}`,
                     href: `etablissement.html?id=${esc(cand.id)}&nic=${esc(et.nic)}`,
                     cible: g.activiteCible || "Tout l'établissement",
@@ -388,7 +438,22 @@
                     : "En activité"
                   : "Fermé"
               }</span>
-              ${groupesActuels.map((g) => `<span class="pill grp" style="margin-left:6px">${estReprise(g) ? "Repris par : " : "Groupe : "}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` (${g.pourcentage} %)` : ""}</span>`).join("")}
+              ${historiqueNomsEtab.map((h) => `<span class="pill reprise" style="margin-left:6px">Ancien nom : ${esc(h.ancienNom)}${h.dateChangement ? ` (jusqu'au ${fmtDate(h.dateChangement)})` : ""}</span>`).join("")}
+              ${groupesActuels
+                .map((g) => {
+                  const isEt = estEtat(g);
+                  const isSal = estSalaries(g);
+                  const cls = isEt ? "etat" : isSal ? "salaries" : "grp";
+                  const pref = isEt
+                    ? "🏛️ "
+                    : isSal
+                      ? "👥 "
+                      : estReprise(g)
+                        ? "Repris par : "
+                        : "Groupe : ";
+                  return `<span class="pill ${cls}" style="margin-left:6px">${pref}${esc(g.groupe)}${g.pourcentage !== "" && g.pourcentage != null ? ` (${g.pourcentage} %)` : ""}</span>`;
+                })
+                .join("")}
               ${anciensGroupes.map((g) => `<span class="pill off" style="margin-left:6px;text-transform:none">Ancien groupe : ${esc(g.groupe)}</span>`).join("")}
             </p>
 
@@ -397,12 +462,25 @@
             <p class="intro">
               Cet établissement (SIRET <strong>${fmtSiret(siret)}</strong>) est ${isSiege ? "le <strong>siège social</strong>" : "un <strong>établissement</strong>"} de l'entreprise
               <a href="entreprise.html?id=${esc(e.id)}"><strong>${esc(e.denomination)}</strong></a> (SIREN ${fmtSiren(e.siren)}${e.statut === "Cessée" ? " — <em>entreprise liquidée / cessée</em>" : ""}).
-              ${rawEtab.enseigne ? `Il exerce sous l'enseigne <strong>${esc(rawEtab.enseigne)}</strong>.` : ""}
+              ${
+                rawEtab.enseigne
+                  ? `Il exerce sous le nom / l'enseigne <strong>${esc(rawEtab.enseigne)}</strong>${
+                      historiqueNomsEtab.length
+                        ? ` (anciennement dénommé ${historiqueNomsEtab
+                            .map(
+                              (h) =>
+                                `<strong>${esc(h.ancienNom)}</strong>${h.dateChangement ? ` jusqu'au ${fmtDate(h.dateChangement)}` : ""}`,
+                            )
+                            .join(", ")})`
+                        : ""
+                    }.`
+                  : ""
+              }
               ${
                 groupesActuels.length
                   ? aUneReprise
-                    ? `Il est aujourd'hui repris et détenu par ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe)}${g.dateDebut ? ` (repris le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
-                    : `Il est rattaché à ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe)}${g.dateDebut ? ` (depuis le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
+                    ? `Il est aujourd'hui repris et détenu par ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe, g)}${g.dateDebut ? ` (repris le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
+                    : `Il est détenu / rattaché à ${groupesActuels.map((g) => `${resolveOwnerLink(g.groupe, g.sirenGroupe, g)}${g.dateDebut ? ` (depuis le <strong>${fmtDate(g.dateDebut)}</strong>)` : ""}`).join(", ")}.`
                   : ""
               }
               Son activité principale est : <strong>${esc(mainAct)}</strong> (${esc(mainNaf)}).
@@ -428,10 +506,19 @@
                 </td></tr>
                 ${
                   groupesActuels.length
-                    ? `<tr><th>${aUneReprise ? "Groupe / Repreneur actuel" : "Groupe / Actionnaire"}</th><td>${groupesActuels
+                    ? `<tr><th>${aUneReprise ? "Groupe / Repreneur actuel" : "Actionnariat / Groupe"}</th><td>${groupesActuels
                         .map((g) => {
                           const rep = estReprise(g) || e.statut === "Cessée";
-                          return `${resolveOwnerLink(g.groupe, g.sirenGroupe)} <span class="pill ${rep ? "on" : "grp"}" style="margin-left:6px;text-transform:none">${
+                          const isEt = estEtat(g);
+                          const isSal = estSalaries(g);
+                          const cls = isEt
+                            ? "etat"
+                            : isSal
+                              ? "salaries"
+                              : rep
+                                ? "on"
+                                : "grp";
+                          return `${resolveOwnerLink(g.groupe, g.sirenGroupe, g)} <span class="pill ${cls}" style="margin-left:6px;text-transform:none">${
                             g.dateDebut
                               ? `${rep ? "Repris le" : "Depuis le"} ${fmtDate(g.dateDebut)}`
                               : "Actionnaire actuel"
@@ -446,7 +533,19 @@
                     : `<span class="pill off">Fermé${rawEtab.dateFermeture && rawEtab.dateFermeture !== "Fermé" ? ` le ${fmtDate(rawEtab.dateFermeture)}` : ""}</span>`
                 }</td></tr>
                 <tr><th>Type d'établissement</th><td>${isSiege ? `<span class="pill siege" style="margin:0">Siège social</span>` : "Établissement secondaire"}</td></tr>
-                ${rawEtab.enseigne ? `<tr><th>Enseigne</th><td><strong>${esc(rawEtab.enseigne)}</strong></td></tr>` : ""}
+                ${rawEtab.enseigne ? `<tr><th>Nom / Enseigne actuelle</th><td><strong>${esc(rawEtab.enseigne)}</strong></td></tr>` : ""}
+                ${
+                  historiqueNomsEtab.length
+                    ? `<tr><th>Ancien${historiqueNomsEtab.length > 1 ? "s" : ""} nom${historiqueNomsEtab.length > 1 ? "s" : ""} / enseigne${historiqueNomsEtab.length > 1 ? "s" : ""}</th><td>
+                        ${historiqueNomsEtab
+                          .map(
+                            (h) =>
+                              `<div><strong>${esc(h.ancienNom)}</strong> — ${fmtPeriodeNom(h)}${h.motif ? ` <em>(${esc(h.motif)})</em>` : ""}</div>`,
+                          )
+                          .join("")}
+                      </td></tr>`
+                    : ""
+                }
                 <tr><th>Activité principale (NAF/APE)</th><td><strong>${esc(mainNaf)}</strong> — ${esc(mainAct)}</td></tr>
                 <tr><th>Adresse postale</th><td>${esc(rawEtab.adresse)}</td></tr>
                 <tr><th>Date de création</th><td>${fmtDate(rawEtab.dateCreation || e.dateCreation)}</td></tr>
@@ -454,7 +553,7 @@
 
               <div class="two-col-grid">
                 <section class="etabs-box" style="margin-top:0">
-                  <h3>Activités NAF de cet établissement</h3>
+                  <h3>Activités NAF & Historique du nom</h3>
                   <p class="muted" style="margin-top:0">Chaque établissement possède ses propres codes NAF (principale et secondaires) :</p>
                   ${
                     activitesEtab.length
@@ -472,24 +571,51 @@
                         </table></div>`
                       : "<p class='muted'>Aucune activité renseignée pour cet établissement.</p>"
                   }
+
+                  ${
+                    historiqueNomsEtab.length
+                      ? `<h4 style="margin-top:24px">Historique des changements de nom de cet établissement (${historiqueNomsEtab.length})</h4>
+                        <div class="etab-wrap"><table class="list">
+                          <tr><th>Ancien nom / Enseigne</th><th>Période</th><th>Motif</th></tr>
+                          ${historiqueNomsEtab
+                            .map(
+                              (h) => `<tr>
+                            <td><strong>${esc(h.ancienNom)}</strong></td>
+                            <td>${fmtPeriodeNom(h)}</td>
+                            <td><span class="pill reprise">${esc(h.motif || "Changement d'enseigne")}</span></td>
+                          </tr>`,
+                            )
+                            .join("")}
+                        </table></div>`
+                      : ""
+                  }
                 </section>
 
                 <section class="etabs-box" style="margin-top:0">
-                  <h3>Groupes, Reprises & Détention de cet établissement</h3>
-                  <h4>Rattachement (${aUneReprise ? "Repreneur actuel & Ancien groupe" : "Groupes & Actionnariat"})</h4>
+                  <h3>Actionnariat, Groupes, État, Salariés & Détention</h3>
+                  <h4>Rattachement (${aUneReprise ? "Repreneur actuel & Ancien groupe" : "Actionnaires & Groupes propriétaires"})</h4>
                   ${
                     groupesEtab.length
                       ? `<div class="etab-wrap"><table class="list">
-                          <tr><th>Groupe / Propriétaire</th><th>Périmètre</th><th>Statut & Période</th><th>Détention</th></tr>
+                          <tr><th>Actionnaire / Groupe / Propriétaire</th><th>Périmètre</th><th>Statut & Période</th><th>Détention</th></tr>
                           ${groupesEtab
                             .map((g) => {
                               const anc = estAncien(g);
                               const rep = estReprise(g);
+                              const isEt = estEtat(g);
+                              const isSal = estSalaries(g);
+                              const pillCls = anc
+                                ? "off"
+                                : isEt
+                                  ? "etat"
+                                  : isSal
+                                    ? "salaries"
+                                    : "on";
                               return `<tr style="${anc ? "opacity:0.78" : ""}">
-                                <td>${resolveOwnerLink(g.groupe, g.sirenGroupe)}</td>
+                                <td>${resolveOwnerLink(g.groupe, g.sirenGroupe, g)}</td>
                                 <td>${esc(g.portee)}</td>
                                 <td>
-                                  <span class="pill ${anc ? "off" : "on"}" style="text-transform:none">${esc(anc ? g.type || "Ancien groupe" : rep ? "Repris / Actif" : g.type || "Filiale / Rattaché")}</span>
+                                  <span class="pill ${pillCls}" style="text-transform:none">${esc(anc ? g.type || "Ancien groupe" : rep ? "Repris / Actif" : g.type || "Filiale / Rattaché")}</span>
                                   <div class="muted" style="margin-top:4px">
                                     <strong>${fmtPeriode(g.dateDebut, g.dateFin, anc, rep)}</strong>
                                     ${g.commentaire ? `<br><em>${esc(g.commentaire)}</em>` : ""}
@@ -500,7 +626,7 @@
                             })
                             .join("")}
                         </table></div>`
-                      : "<p class='muted'>Aucun rattachement de groupe spécifique renseigné.</p>"
+                      : "<p class='muted'>Aucun rattachement de groupe ou d'actionnaire spécifique renseigné.</p>"
                   }
 
                   <h4 style="margin-top:24px">Entreprises & structures détenues (ou reprises) par cet établissement (${filialesDetenues.length})</h4>
@@ -515,6 +641,11 @@
                               ) => `<tr style="${f.ancien ? "opacity:0.78" : ""}">
                             <td>
                               <a href="${f.href}"><strong>${esc(f.label)}</strong></a>
+                              ${
+                                f.anciensNoms && f.anciensNoms.length
+                                  ? `<div style="margin-top:2px"><span class="pill reprise" style="font-size:11px">Ex-nom : ${f.anciensNoms.map(esc).join(", ")}</span></div>`
+                                  : ""
+                              }
                               <div class="muted">${esc(f.sub)}</div>
                             </td>
                             <td>${esc(f.cible)}</td>
@@ -524,12 +655,12 @@
                                 <strong>${fmtPeriode(f.dateDebut, f.dateFin, f.ancien, f.reprise)}</strong>
                                 ${
                                   f.repreneur
-                                    ? `<br>↪ Repris par ${resolveOwnerLink(f.repreneur.groupe, f.repreneur.sirenGroupe)}`
+                                    ? `<br>↪ Repris par ${resolveOwnerLink(f.repreneur.groupe, f.repreneur.sirenGroupe, f.repreneur)}`
                                     : ""
                                 }
                                 ${
                                   !f.ancien && f.ancienProp
-                                    ? `<br>↩ Ancien groupe : ${resolveOwnerLink(f.ancienProp.groupe, f.ancienProp.sirenGroupe)}${f.ancienProp.dateFin ? ` (liquidé le ${fmtDate(f.ancienProp.dateFin)})` : " (liquidé)"}`
+                                    ? `<br>↩ Ancien groupe : ${resolveOwnerLink(f.ancienProp.groupe, f.ancienProp.sirenGroupe, f.ancienProp)}${f.ancienProp.dateFin ? ` (liquidé le ${fmtDate(f.ancienProp.dateFin)})` : " (liquidé)"}`
                                     : ""
                                 }
                                 ${f.commentaire ? `<br><em>${esc(f.commentaire)}</em>` : ""}
