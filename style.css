@@ -754,6 +754,14 @@ legend {
 .sub-etab-box.hist-box .sub-title {
   color: #7a4f01;
 }
+.pill.ancien-siege {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+  margin-left: 8px;
+  font-size: 12px;
+  text-transform: none;
+}
 
 /* =========================================================
    RESPONSIVE TABLETTE (max-width: 900px)

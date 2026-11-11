@@ -209,11 +209,25 @@
               ><input type="number" id="capital" min="0" />
             </div>
             <div>
-              <label>Adresse du siège</label
-              ><input id="adresse" placeholder="1 QUAI EXEMPLE" />
+              <label>Adresse du siège actuel</label>
+              <div style="display: flex; gap: 6px">
+                <input id="adresse" placeholder="1 QUAI EXEMPLE" />
+                <button
+                  type="button"
+                  class="btn small reprise-btn hidden"
+                  id="btnTransferSiege"
+                  title="Fermer l'ancien siège social (conservé dans l'historique) et déménager vers une nouvelle adresse"
+                >
+                  🚚 Déménager le siège
+                </button>
+              </div>
             </div>
             <div><label>Code postal</label><input id="cp" maxlength="5" /></div>
             <div><label>Ville</label><input id="ville" /></div>
+            <div>
+              <label>Date d'ouverture du siège actuel (si transféré)</label>
+              <input type="date" id="dateOuvertureSiege" />
+            </div>
           </div>
 
           <!-- Datalists pour faciliter le rattachement aux groupes / État / Salariés / établissements propriétaires -->
@@ -265,6 +279,7 @@
         "activite",
         "dateCreation",
         "dateImmatriculation",
+        "dateOuvertureSiege",
         "statut",
         "dateCessation",
         "categorie",
@@ -453,7 +468,7 @@
         },
         etablissements: {
           title:
-            "Autres établissements (chacun a sa propre fiche, ses NAF secondaires, ses anciens noms et ses actionnaires/groupes)",
+            "Autres établissements & Anciens sièges sociaux (chacun a sa propre fiche, ses NAF secondaires, ses anciens noms et ses actionnaires/groupes)",
           cols: [
             ["nic", "NIC (5 chiffres) — généré auto"],
             ["naf", "Code NAF principal de l'établissement", "select", "NAF"],
@@ -462,6 +477,12 @@
             ["adresse", "Adresse complète (ex. 10 RUE X 75001 PARIS)"],
             ["dateCreation", "Création", "date"],
             ["dateFermeture", "Fermeture (vide = en activité)", "date"],
+            [
+              "roleEtab",
+              "Rôle / Nature de l'établissement",
+              "select",
+              ["Établissement secondaire", "Ancien siège social (transféré)"],
+            ],
           ],
         },
         documents: {
@@ -493,7 +514,7 @@
           title: "Annonces et observations",
           cols: [
             ["date", "Date", "date"],
-            ["type", "Type (BODACC, Changement de nom…)"],
+            ["type", "Type (BODACC, Changement de nom, Transfert de siège…)"],
             ["texte", "Détail"],
           ],
         },
@@ -607,6 +628,86 @@
 
         $("enseigneSiege").value = nouvelleEns.trim();
         originalEnseigneSiege = nouvelleEns.trim();
+      });
+
+      /* ---------- 3. Assistant de transfert / déménagement du siège social ---------- */
+      function archiverAncienSiege(dateTransfert) {
+        const oldNic = $("nic").value.trim() || "00015";
+        const oldAdresse = [
+          $("adresse").value.trim(),
+          $("cp").value.trim(),
+          $("ville").value.trim(),
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const oldDateOuverture =
+          $("dateOuvertureSiege").value || $("dateCreation").value || "";
+        const oldNafSec = collect("nafSecondaires");
+
+        addRow("etablissements", {
+          nic: oldNic,
+          naf: $("naf").value,
+          activite: $("activite").value,
+          enseigne: $("enseigneSiege").value.trim(),
+          adresse: oldAdresse,
+          dateCreation: oldDateOuverture,
+          dateFermeture: dateTransfert,
+          roleEtab: "Ancien siège social (transféré)",
+          nafSecondaires: oldNafSec,
+        });
+
+        return { oldNic, oldAdresse };
+      }
+
+      $("btnTransferSiege").addEventListener("click", () => {
+        const oldAdresse = [
+          $("adresse").value.trim(),
+          $("cp").value.trim(),
+          $("ville").value.trim(),
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const today = new Date().toISOString().slice(0, 10);
+        const dateTransfert = prompt(
+          `Date du transfert / déménagement du siège social (fermeture de l'ancien siège au « ${oldAdresse || "adresse actuelle"} ») :`,
+          today,
+        );
+        if (!dateTransfert) return;
+
+        const nvAdresse = prompt(
+          "Nouvelle adresse du siège social (numéro et voie) :",
+        );
+        if (!nvAdresse || !nvAdresse.trim()) return;
+        const nvCp =
+          prompt("Nouveau code postal du siège :", $("cp").value) || "";
+        const nvVille =
+          prompt("Nouvelle ville du siège :", $("ville").value) || "";
+        const nvEnseigne = prompt(
+          "Enseigne du nouveau siège (laisser tel quel ou modifier) :",
+          $("enseigneSiege").value,
+        );
+
+        // 1. Archive l'ancien siège social comme établissement fermé ("Ancien siège social (transféré)")
+        const { oldNic } = archiverAncienSiege(dateTransfert.trim());
+
+        // 2. Génère un nouveau NIC libre pour le nouveau siège et met à jour les coordonnées
+        const nvNic = prochainNicEtablissement();
+        $("nic").value = nvNic;
+        $("adresse").value = nvAdresse.trim();
+        $("cp").value = nvCp.trim();
+        $("ville").value = nvVille.trim();
+        $("dateOuvertureSiege").value = dateTransfert.trim();
+        if (nvEnseigne !== null) {
+          $("enseigneSiege").value = nvEnseigne.trim();
+          originalEnseigneSiege = nvEnseigne.trim();
+        }
+
+        // 3. Ajoute automatiquement une annonce légale de transfert de siège
+        addRow("annonces", {
+          date: dateTransfert.trim(),
+          type: "Transfert du siège social",
+          texte: `Transfert du siège social de « ${oldAdresse} » (SIRET ${fmtSiret($("siren").value + oldNic)}, fermé) vers « ${nvAdresse.trim()} ${nvCp.trim()} ${nvVille.trim()} » (nouveau SIRET ${fmtSiret($("siren").value + nvNic)}).`,
+        });
       });
 
       /* ---------- Assistant de reprise suite à faillite / cession ---------- */
@@ -973,6 +1074,9 @@
           } else if (!values.nic) {
             values.nic = prochainNicEtablissement();
           }
+          if (!values.roleEtab) {
+            values.roleEtab = "Établissement secondaire";
+          }
         }
         const rows = document.querySelector(
           `fieldset[data-sec="${sec}"] .rows`,
@@ -1008,6 +1112,7 @@
             .join("") +
           `<div style="display:flex;gap:6px;align-items:end">
             ${sec === "groupes" ? `<button type="button" class="btn small reprise-btn transfer-grp" title="Archiver cet ancien groupe et créer la ligne du repreneur">⚡ Transférer à un repreneur</button>` : ""}
+            ${sec === "etablissements" ? `<button type="button" class="btn small reprise-btn promote-siege-btn" title="Faire de cet établissement le nouveau siège social et fermer l'ancien siège">🏛️ Promouvoir en siège</button>` : ""}
             <button type="button" class="btn danger small rm">✕</button>
           </div>`;
 
@@ -1020,6 +1125,78 @@
               $("siren").value,
               Math.floor(Math.random() * 89) + 10,
             );
+          });
+        }
+
+        // Bouton pour promouvoir un établissement existant en nouveau siège social
+        const btnPromoteSiege = row.querySelector(".promote-siege-btn");
+        if (btnPromoteSiege) {
+          btnPromoteSiege.addEventListener("click", () => {
+            const targetNic = row
+              .querySelector('input[data-k="nic"]')
+              .value.trim();
+            const targetEns = row
+              .querySelector('input[data-k="enseigne"]')
+              .value.trim();
+            const targetAddrFull = row
+              .querySelector('input[data-k="adresse"]')
+              .value.trim();
+            const targetDateCrea = row
+              .querySelector('input[data-k="dateCreation"]')
+              .value.trim();
+            const targetNaf = row.querySelector('select[data-k="naf"]').value;
+            const targetAct = row
+              .querySelector('input[data-k="activite"]')
+              .value.trim();
+
+            const today = new Date().toISOString().slice(0, 10);
+            const dateTransfert = prompt(
+              `Date du transfert du siège social vers cet établissement (${targetEns || "NIC " + targetNic}) — l'ancien siège sera marqué comme fermé à cette date :`,
+              today,
+            );
+            if (!dateTransfert) return;
+
+            const m = targetAddrFull.match(/^(.*?)\s+(\d{5})\s+(.+)$/);
+            const nvVoie = m
+              ? m[1]
+              : prompt("Numéro et rue du nouveau siège :", targetAddrFull) ||
+                targetAddrFull;
+            const nvCp = m
+              ? m[2]
+              : prompt("Code postal du nouveau siège :", $("cp").value) ||
+                $("cp").value;
+            const nvVille = m
+              ? m[3]
+              : prompt("Ville du nouveau siège :", $("ville").value) ||
+                $("ville").value;
+
+            // 1. Archive l'ancien siège dans la liste des établissements fermés
+            const { oldNic, oldAdresse } = archiverAncienSiege(
+              dateTransfert.trim(),
+            );
+
+            // 2. Met à jour le siège social en haut avec les informations de cet établissement
+            $("nic").value = targetNic;
+            $("adresse").value = nvVoie.trim();
+            $("cp").value = nvCp.trim();
+            $("ville").value = nvVille.trim();
+            $("enseigneSiege").value = targetEns;
+            originalEnseigneSiege = targetEns;
+            $("dateOuvertureSiege").value =
+              targetDateCrea || dateTransfert.trim();
+            if (targetNaf) {
+              $("naf").value = targetNaf;
+              $("activite").value = targetAct || nafLabel(targetNaf);
+            }
+
+            // 3. Ajoute l'annonce légale et retire la ligne (devenue le siège social actuel)
+            addRow("annonces", {
+              date: dateTransfert.trim(),
+              type: "Transfert du siège social",
+              texte: `Transfert du siège social de « ${oldAdresse} » (SIRET ${fmtSiret($("siren").value + oldNic)}, fermé) vers l'établissement « ${nvVoie} ${nvCp} ${nvVille} » (SIRET ${fmtSiret($("siren").value + targetNic)}).`,
+            });
+            row.remove();
+            refreshActivitesDatalist();
           });
         }
 
@@ -1483,6 +1660,7 @@
           : "Nouvelle entreprise";
         $("btnRename").classList.toggle("hidden", !id);
         $("btnRenameSiege").classList.toggle("hidden", !id);
+        $("btnTransferSiege").classList.toggle("hidden", !id);
 
         if (id) {
           const e = (await getDoc(doc(db, "entreprises", id))).data();

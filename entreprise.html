@@ -255,7 +255,7 @@
           return `<strong>${esc(nom)}</strong>${clean && !/^(ETAT|SALARIES|FLOTTANT|FONDATEURS|COLLECTIVITE)/i.test(clean) ? ` <span class="muted">(${esc(clean)})</span>` : ""}`;
         };
 
-        /* Établissements */
+        /* Établissements (Siège actuel + Autres établissements / Anciens sièges) */
         const siege = {
           nic: siegeNic,
           siret: (e.siren || "") + siegeNic,
@@ -273,9 +273,10 @@
           groupes: e.groupes || [],
           enseigne: e.enseigneSiege || "",
           adresse: `${e.adresse} ${e.cp} ${e.ville}`,
-          dateCreation: e.dateCreation,
+          dateCreation: e.dateOuvertureSiege || e.dateCreation,
           dateFermeture: actif ? "" : e.dateCessation || "Fermé",
           repriseActive: false,
+          ancienSiege: false,
           isSiege: true,
         };
         const autres = (e.etablissements || []).map((x) => {
@@ -307,6 +308,7 @@
             dateCreation: x.dateCreation || "",
             dateFermeture: dateFerm,
             repriseActive: !actif && hasActiveRepreneur,
+            ancienSiege: /ancien siège|ancien siege/i.test(x.roleEtab || ""),
             isSiege: false,
           };
         });
@@ -324,13 +326,14 @@
             (a.dateCreation || "").localeCompare(b.dateCreation || ""),
           );
         const total = tous.length;
+        const anciensSieges = autres.filter((x) => x.ancienSiege);
 
         const etabUrl = (x) =>
           `etablissement.html?id=${encodeURIComponent(id)}&nic=${encodeURIComponent(x.nic)}`;
 
         const etabTable = (list) => `
         <div class="etab-wrap"><table class="etab">
-          <tr><th>SIRET (Fiche établissement)</th><th>Activités de l'établissement (NAF)</th><th>Détails (enseigne, anciens noms, adresse, actionnariat)</th><th>Création</th><th>État</th><th></th></tr>
+          <tr><th>SIRET (Fiche établissement)</th><th>Activités de l'établissement (NAF)</th><th>Détails (enseigne, anciens noms, adresse, actionnariat)</th><th>Ouverture / Création</th><th>État</th><th></th></tr>
           ${list
             .map(
               (x) => `
@@ -367,6 +370,7 @@
                 }
                 <span class="addr">${esc(x.adresse)}</span>
                 ${x.isSiege ? `<span class="pill siege">Siège social</span>` : ""}
+                ${x.ancienSiege ? `<span class="pill ancien-siege">Ancien siège social (transféré)</span>` : ""}
                 ${
                   !x.isSiege && x.groupes && x.groupes.length
                     ? `<div style="margin-top:6px">${x.groupes
@@ -402,7 +406,7 @@
               <td>${fmtDate(x.dateCreation)}</td>
               <td>${
                 x.dateFermeture
-                  ? `<span class="pill off">Fermé${x.dateFermeture !== "Fermé" ? ` le ${fmtDate(x.dateFermeture)}` : ""}</span>`
+                  ? `<span class="pill off">${x.ancienSiege ? "Transféré / Fermé" : "Fermé"}${x.dateFermeture !== "Fermé" ? ` le ${fmtDate(x.dateFermeture)}` : ""}</span>`
                   : `<span class="pill on">${x.repriseActive ? "En activité (Repris)" : "En activité"}</span>`
               }</td>
               <td><a class="btn sec small" href="${etabUrl(x)}">Voir la fiche →</a></td>
@@ -784,7 +788,7 @@
                         : ""
                     }
                   </td>
-                  <td><a href="${etabUrl(x)}">${fmtSiret(x.siret)}</a>${x.isSiege ? ` <span class="pill siege">Siège social</span>` : ""}</td>
+                  <td><a href="${etabUrl(x)}">${fmtSiret(x.siret)}</a>${x.isSiege ? ` <span class="pill siege">Siège social</span>` : ""}${x.ancienSiege ? ` <span class="pill ancien-siege">Ancien siège</span>` : ""}</td>
                   <td>${esc(x.adresse)}</td></tr>`,
                   )
                   .join("")}
@@ -866,7 +870,7 @@
           ${e.nomCommercial ? `Elle est connue sous le nom commercial <strong>${esc(e.nomCommercial)}</strong>.` : ""}
           ${ensNoms.length ? `Elle exerce sous l'enseigne ${ensNoms.map((n) => `<strong>${esc(n)}</strong>`).join(", ")}.` : ""}
         </p>
-        <p class="intro">Son <u>siège social</u> est domicilié au <u>${esc(e.adresse)} ${esc(e.cp)} ${esc(e.ville)}</u>.
+        <p class="intro">Son <u>siège social actuel</u> est domicilié au <u>${esc(e.adresse)} ${esc(e.cp)} ${esc(e.ville)}</u>${e.dateOuvertureSiege ? ` (depuis le <strong>${fmtDate(e.dateOuvertureSiege)}</strong>)` : ""}.
           Elle possède ${total} établissement${total > 1 ? "s" : ""} ayant chacun leur propre fiche.</p>
 
         <div class="tabs" id="tabs">
@@ -900,14 +904,29 @@
                 : ""
             }
             <tr><th>SIREN</th><td>${fmtSiren(e.siren)}</td></tr>
-            <tr><th>SIRET du siège social</th><td><a href="${etabUrl(siege)}"><strong>${fmtSiret(siege.siret)}</strong> (Voir la fiche de l'établissement siège →)</a></td></tr>
+            <tr><th>SIRET du siège social actuel</th><td><a href="${etabUrl(siege)}"><strong>${fmtSiret(siege.siret)}</strong> (Voir la fiche de l'établissement siège →)</a></td></tr>
             <tr><th>Forme juridique</th><td>${esc(e.formeJuridique)}</td></tr>
             <tr><th>Activité principale (NAF)</th><td>${esc(e.naf)} ${esc(activite)}</td></tr>
             <tr><th>Capital social</th><td>${euro(e.capital)}</td></tr>
-            <tr><th>Date de création</th><td>${fmtDate(e.dateCreation)}</td></tr>
+            <tr><th>Date de création de l'entreprise</th><td>${fmtDate(e.dateCreation)}</td></tr>
             ${actif ? "" : `<tr><th>Date de cessation / liquidation</th><td>${fmtDate(e.dateCessation)}</td></tr>`}
             <tr><th>Tranche d'effectif</th><td>${esc(e.tranche) || "—"}</td></tr>
-            <tr><th>Adresse du siège</th><td>${esc(e.adresse)} ${esc(e.cp)} ${esc(e.ville)}</td></tr>
+            <tr><th>Adresse du siège actuel</th><td>
+              ${esc(e.adresse)} ${esc(e.cp)} ${esc(e.ville)}
+              ${e.dateOuvertureSiege ? `<span class="muted"> (depuis le ${fmtDate(e.dateOuvertureSiege)})</span>` : ""}
+            </td></tr>
+            ${
+              anciensSieges.length
+                ? `<tr><th>Ancien${anciensSieges.length > 1 ? "s" : ""} siège${anciensSieges.length > 1 ? "s" : ""} social${anciensSieges.length > 1 ? "aux" : ""}</th><td>
+                    ${anciensSieges
+                      .map(
+                        (x) =>
+                          `<div style="margin-bottom:4px"><a href="${etabUrl(x)}"><strong>${fmtSiret(x.siret)}</strong></a> — ${esc(x.adresse)} <span class="pill ancien-siege" style="font-size:11px;margin-left:4px">Fermé / Transféré${x.dateFermeture && x.dateFermeture !== "Fermé" ? ` le ${fmtDate(x.dateFermeture)}` : ""}</span></div>`,
+                      )
+                      .join("")}
+                  </td></tr>`
+                : ""
+            }
           </table>
 
           <div class="two-col-grid">
@@ -978,7 +997,7 @@
             dont ${ouverts.length} ${ouverts.length > 1 ? "sont" : "est"} en activité. Clique sur le SIRET ou sur « Voir la fiche » d'un établissement pour consulter sa fiche dédiée :</p>
           <h3>${total} établissement${total > 1 ? "s" : ""} de ${esc(e.denomination)}</h3>
           ${ouverts.length ? `<h4>Établissement${ouverts.length > 1 ? "s" : ""} en activité :</h4>${etabTable(ouverts)}` : ""}
-          ${fermes.length ? `<h4>Établissement${fermes.length > 1 ? "s" : ""} fermé${fermes.length > 1 ? "s" : ""} :</h4>${etabTable(fermes)}` : ""}
+          ${fermes.length ? `<h4>Établissement${fermes.length > 1 ? "s" : ""} fermé${fermes.length > 1 ? "s" : ""} (dont ancien${anciensSieges.length > 1 ? "s" : ""} siège${anciensSieges.length > 1 ? "s" : ""}) :</h4>${etabTable(fermes)}` : ""}
         </section>`;
 
         if (consolides.length)

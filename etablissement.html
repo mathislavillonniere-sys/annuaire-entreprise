@@ -87,9 +87,10 @@
               enseigne: e.enseigneSiege || "",
               adresse:
                 `${e.adresse || ""} ${e.cp || ""} ${e.ville || ""}`.trim(),
-              dateCreation: e.dateCreation,
+              dateCreation: e.dateOuvertureSiege || e.dateCreation,
               dateFermeture:
                 e.statut === "Cessée" ? e.dateCessation || "Fermé" : "",
+              roleEtab: "Siège social",
             }
           : (e.etablissements || []).find(
               (x) =>
@@ -101,6 +102,25 @@
         if (!rawEtab) {
           app.innerHTML = `<h1>Établissement introuvable</h1><p><a href="entreprise.html?id=${esc(e.id)}">← Retour à l'entreprise ${esc(e.denomination)}</a></p>`;
         } else {
+          /* Détection : Ancien siège social transféré */
+          const isAncienSiege =
+            !isSiege &&
+            /ancien siège|ancien siege/i.test(rawEtab.roleEtab || "");
+
+          /* Liste des anciens sièges sociaux de l'entreprise (utile sur la fiche du siège actuel) */
+          const anciensSiegesList = (e.etablissements || [])
+            .filter((x) => /ancien siège|ancien siege/i.test(x.roleEtab || ""))
+            .map((x) => {
+              const nic =
+                x.nic ||
+                (x.siret ? String(x.siret).replace(/\s/g, "").slice(9) : "");
+              return {
+                ...x,
+                nic,
+                siret: x.siret || (e.siren || "") + nic,
+              };
+            });
+
           /* Détection précise : Ancien groupe, Repreneur, État, Salariés */
           const estAncien = (g) => {
             if (g.dateFin) return true;
@@ -123,6 +143,11 @@
 
           const siret =
             rawEtab.siret || (e.siren || "") + (rawEtab.nic || targetNic);
+          const siegeActuelSiret = (e.siren || "") + siegeNic;
+          const siegeActuelUrl = `etablissement.html?id=${encodeURIComponent(e.id)}&nic=${encodeURIComponent(siegeNic)}`;
+          const siegeActuelAdresse =
+            `${e.adresse || ""} ${e.cp || ""} ${e.ville || ""}`.trim();
+
           const historiqueNomsEtab = (rawEtab.historiqueNoms || []).filter(
             (h) => h.ancienNom,
           );
@@ -300,6 +325,30 @@
               </div>`;
           };
 
+          /* Bannière de transfert de siège social (affichée sur l'ancien siège fermé OU sur le nouveau siège) */
+          const transfertSiegeBanner = isAncienSiege
+            ? `<div class="reprise-banner">
+                🚚 <strong>Ancien siège social (transféré et fermé) :</strong> Cet établissement était le siège social de
+                <a href="entreprise.html?id=${esc(e.id)}"><strong>${esc(e.denomination)}</strong></a>
+                ${rawEtab.dateCreation ? `du <strong>${fmtDate(rawEtab.dateCreation)}</strong> ` : ""}${rawEtab.dateFermeture && rawEtab.dateFermeture !== "Fermé" ? `jusqu'au <strong>${fmtDate(rawEtab.dateFermeture)}</strong>` : "avant son déménagement"}.
+                Le siège social est désormais transféré sur l'établissement
+                <a href="${siegeActuelUrl}"><strong>${esc(e.enseigneSiege || fmtSiret(siegeActuelSiret))} (SIRET ${fmtSiret(siegeActuelSiret)})</strong></a>
+                situé au <strong>${esc(siegeActuelAdresse)}</strong>.
+              </div>`
+            : isSiege && anciensSiegesList.length
+              ? `<div class="reprise-banner">
+                  🏛️ <strong>Historique du siège social :</strong> Cet établissement est le nouveau siège social de
+                  <strong>${esc(e.denomination)}</strong>${e.dateOuvertureSiege ? ` depuis le <strong>${fmtDate(e.dateOuvertureSiege)}</strong>` : ""}.
+                  Il succède ${anciensSiegesList.length > 1 ? "aux anciens sièges sociaux fermés" : "à l'ancien siège social fermé"} :
+                  ${anciensSiegesList
+                    .map(
+                      (as) =>
+                        `<a href="etablissement.html?id=${encodeURIComponent(e.id)}&nic=${encodeURIComponent(as.nic)}"><strong>${fmtSiret(as.siret)}</strong></a> (${esc(as.adresse)}${as.dateFermeture && as.dateFermeture !== "Fermé" ? ` — fermé le ${fmtDate(as.dateFermeture)}` : ""})`,
+                    )
+                    .join(", ")}.
+                </div>`
+              : "";
+
           const repriseBanner =
             anciensGroupes.length && groupesActuels.length
               ? `<div class="reprise-banner">
@@ -429,14 +478,22 @@
             <p><a href="entreprise.html?id=${esc(e.id)}">← Retour à la fiche de l'entreprise ${esc(e.denomination)}</a></p>
             <h1>${esc(rawEtab.enseigne || e.denomination)}</h1>
             <p>
-              <span class="pill etab-type">${isSiege ? "Établissement Siège social" : "Établissement secondaire"}</span>
+              <span class="pill ${isAncienSiege ? "ancien-siege" : "etab-type"}">${
+                isSiege
+                  ? "Établissement Siège social"
+                  : isAncienSiege
+                    ? "Ancien siège social (transféré)"
+                    : "Établissement secondaire"
+              }</span>
               <span class="muted">‣ SIRET ${fmtSiret(siret)}</span>
               <span class="pill ${actif ? "on" : "off"}">${
                 actif
                   ? reprisEtActif && e.statut === "Cessée"
                     ? "En activité (Repris)"
                     : "En activité"
-                  : "Fermé"
+                  : isAncienSiege
+                    ? `Transféré / Fermé${rawEtab.dateFermeture && rawEtab.dateFermeture !== "Fermé" ? ` le ${fmtDate(rawEtab.dateFermeture)}` : ""}`
+                    : "Fermé"
               }</span>
               ${historiqueNomsEtab.map((h) => `<span class="pill reprise" style="margin-left:6px">Ancien nom : ${esc(h.ancienNom)}${h.dateChangement ? ` (jusqu'au ${fmtDate(h.dateChangement)})` : ""}</span>`).join("")}
               ${groupesActuels
@@ -457,14 +514,21 @@
               ${anciensGroupes.map((g) => `<span class="pill off" style="margin-left:6px;text-transform:none">Ancien groupe : ${esc(g.groupe)}</span>`).join("")}
             </p>
 
+            ${transfertSiegeBanner}
             ${repriseBanner}
 
             <p class="intro">
-              Cet établissement (SIRET <strong>${fmtSiret(siret)}</strong>) est ${isSiege ? "le <strong>siège social</strong>" : "un <strong>établissement</strong>"} de l'entreprise
+              Cet établissement (SIRET <strong>${fmtSiret(siret)}</strong>) ${
+                isSiege
+                  ? "est le <strong>siège social actuel</strong>"
+                  : isAncienSiege
+                    ? "était un <strong>ancien siège social (aujourd'hui fermé et transféré)</strong>"
+                    : "est un <strong>établissement</strong>"
+              } de l'entreprise
               <a href="entreprise.html?id=${esc(e.id)}"><strong>${esc(e.denomination)}</strong></a> (SIREN ${fmtSiren(e.siren)}${e.statut === "Cessée" ? " — <em>entreprise liquidée / cessée</em>" : ""}).
               ${
                 rawEtab.enseigne
-                  ? `Il exerce sous le nom / l'enseigne <strong>${esc(rawEtab.enseigne)}</strong>${
+                  ? `Il ${actif ? "exerce" : "exerçait"} sous le nom / l'enseigne <strong>${esc(rawEtab.enseigne)}</strong>${
                       historiqueNomsEtab.length
                         ? ` (anciennement dénommé ${historiqueNomsEtab
                             .map(
@@ -486,7 +550,7 @@
               Son activité principale est : <strong>${esc(mainAct)}</strong> (${esc(mainNaf)}).
               ${
                 activitesEtab.length > 1
-                  ? `Il exerce également ${activitesEtab.length - 1} activité${activitesEtab.length - 1 > 1 ? "s" : ""} secondaire${activitesEtab.length - 1 > 1 ? "s" : ""}.`
+                  ? `Il compte également ${activitesEtab.length - 1} activité${activitesEtab.length - 1 > 1 ? "s" : ""} secondaire${activitesEtab.length - 1 > 1 ? "s" : ""}.`
                   : ""
               }
               ${
@@ -530,9 +594,35 @@
                 <tr><th>Statut de l'établissement</th><td>${
                   actif
                     ? `<span class="pill on">${reprisEtActif && e.statut === "Cessée" ? "En activité (Repris suite à la liquidation de " + esc(e.denomination) + ")" : "En activité"}</span>`
-                    : `<span class="pill off">Fermé${rawEtab.dateFermeture && rawEtab.dateFermeture !== "Fermé" ? ` le ${fmtDate(rawEtab.dateFermeture)}` : ""}</span>`
+                    : `<span class="pill off">${isAncienSiege ? "Fermé (Siège social transféré)" : "Fermé"}${rawEtab.dateFermeture && rawEtab.dateFermeture !== "Fermé" ? ` le ${fmtDate(rawEtab.dateFermeture)}` : ""}</span>`
                 }</td></tr>
-                <tr><th>Type d'établissement</th><td>${isSiege ? `<span class="pill siege" style="margin:0">Siège social</span>` : "Établissement secondaire"}</td></tr>
+                <tr><th>Type / Rôle de l'établissement</th><td>${
+                  isSiege
+                    ? `<span class="pill siege" style="margin:0">Siège social actuel</span>${e.dateOuvertureSiege ? ` <span class="muted">(siège depuis le ${fmtDate(e.dateOuvertureSiege)})</span>` : ""}`
+                    : isAncienSiege
+                      ? `<span class="pill ancien-siege" style="margin:0">Ancien siège social (transféré)</span>`
+                      : "Établissement secondaire"
+                }</td></tr>
+                ${
+                  isAncienSiege
+                    ? `<tr><th>Nouveau siège social actuel</th><td>
+                        <a href="${siegeActuelUrl}"><strong>${fmtSiret(siegeActuelSiret)}</strong>${e.enseigneSiege ? ` — ${esc(e.enseigneSiege)}` : ""}</a>
+                        <span class="muted">(${esc(siegeActuelAdresse)}${e.dateOuvertureSiege ? ` · depuis le ${fmtDate(e.dateOuvertureSiege)}` : ""})</span>
+                      </td></tr>`
+                    : ""
+                }
+                ${
+                  isSiege && anciensSiegesList.length
+                    ? `<tr><th>Ancien${anciensSiegesList.length > 1 ? "s" : ""} siège${anciensSiegesList.length > 1 ? "s" : ""} social${anciensSiegesList.length > 1 ? "aux" : ""}</th><td>
+                        ${anciensSiegesList
+                          .map(
+                            (as) =>
+                              `<div style="margin-bottom:4px"><a href="etablissement.html?id=${encodeURIComponent(e.id)}&nic=${encodeURIComponent(as.nic)}"><strong>${fmtSiret(as.siret)}</strong></a> — ${esc(as.adresse)} <span class="pill ancien-siege" style="font-size:11px;margin-left:4px">Fermé / Transféré${as.dateFermeture && as.dateFermeture !== "Fermé" ? ` le ${fmtDate(as.dateFermeture)}` : ""}</span></div>`,
+                          )
+                          .join("")}
+                      </td></tr>`
+                    : ""
+                }
                 ${rawEtab.enseigne ? `<tr><th>Nom / Enseigne actuelle</th><td><strong>${esc(rawEtab.enseigne)}</strong></td></tr>` : ""}
                 ${
                   historiqueNomsEtab.length
@@ -548,7 +638,12 @@
                 }
                 <tr><th>Activité principale (NAF/APE)</th><td><strong>${esc(mainNaf)}</strong> — ${esc(mainAct)}</td></tr>
                 <tr><th>Adresse postale</th><td>${esc(rawEtab.adresse)}</td></tr>
-                <tr><th>Date de création</th><td>${fmtDate(rawEtab.dateCreation || e.dateCreation)}</td></tr>
+                <tr><th>Date d'ouverture / création</th><td>${fmtDate(rawEtab.dateCreation || e.dateCreation)}</td></tr>
+                ${
+                  rawEtab.dateFermeture && rawEtab.dateFermeture !== "Fermé"
+                    ? `<tr><th>Date de fermeture${isAncienSiege ? " / transfert" : ""}</th><td>${fmtDate(rawEtab.dateFermeture)}</td></tr>`
+                    : ""
+                }
               </table>
 
               <div class="two-col-grid">
